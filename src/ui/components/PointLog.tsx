@@ -23,7 +23,7 @@ const END_LABELS: Record<PointEnd, string> = {
   ace: 'Ace',
   double_fault: 'Double fault',
   return_winner: 'Return Ace',
-  return_error: 'Unforced Error Return',
+  return_error: 'Return error',
   rally: 'Rally',
 };
 

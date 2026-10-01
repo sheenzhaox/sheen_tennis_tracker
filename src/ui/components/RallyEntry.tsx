@@ -17,11 +17,15 @@ interface Props {
   onComplete: (rally: RallyDetail) => void;
 }
 
-type Draft = Omit<RallyDetail, 'ending'> & { ending: RallyEnding | null };
+type EndBy = 'server' | 'returner';
+type EndKind = 'winner' | 'error';
+
+type Draft = Omit<RallyDetail, 'ending'> & { by: EndBy | null; kind: EndKind | null };
 
 const EMPTY: Draft = {
   count: null,
-  ending: null,
+  by: null,
+  kind: null,
   stroke: 'none',
   error: 'none',
   lucky: false,
@@ -30,26 +34,30 @@ const EMPTY: Draft = {
   position: 'none',
 };
 
-const isUnforced = (e: RallyEnding | null) => e === 'server_error' || e === 'returner_error';
+const END_KINDS: { value: EndKind; label: string }[] = [
+  { value: 'winner', label: 'Winner & forced error' },
+  { value: 'error', label: 'Unforced error' },
+];
 
-function toDetail(d: Draft & { ending: RallyEnding }): RallyDetail {
-  const { error, lucky, ...rest } = d;
-  return isUnforced(d.ending) ? { ...rest, error } : { ...rest, lucky };
+const endingOf = (d: Draft): RallyEnding | null => (d.by && d.kind ? `${d.by}_${d.kind}` : null);
+
+function toDetail(d: Draft, ending: RallyEnding): RallyDetail {
+  const { by: _by, kind, error, lucky, ...rest } = d;
+  return kind === 'error' ? { ...rest, ending, error } : { ...rest, ending, lucky };
 }
 
 /** Rally entry after "Serve in": rally count, how the point ended, and the last shot. */
 export default function RallyEntry({ serverName, returnerName, busy, onComplete }: Props) {
   const [d, setD] = useState<Draft>(EMPTY);
 
-  const endings: { value: RallyEnding; label: string }[] = [
-    { value: 'server_winner', label: `${serverName} winner & forced error` },
-    { value: 'returner_winner', label: `${returnerName} winner & forced error` },
-    { value: 'server_error', label: `${serverName} unforced error` },
-    { value: 'returner_error', label: `${returnerName} unforced error` },
+  const players: { value: EndBy; label: string }[] = [
+    { value: 'server', label: serverName },
+    { value: 'returner', label: returnerName },
   ];
 
   const complete = (next: Draft) => {
-    if (next.ending) onComplete(toDetail({ ...next, ending: next.ending }));
+    const ending = endingOf(next);
+    if (ending) onComplete(toDetail(next, ending));
   };
 
   function pick<K extends 'stroke' | 'error' | 'direction' | 'shotType' | 'position'>(key: K, value: Draft[K]) {
@@ -70,13 +78,14 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
         + Rally count: {d.count ?? 'None'}
       </button>
 
-      <OptionRow title="Point ending" options={endings} value={d.ending ?? ''} cols="two" disabled={busy} onPick={(v) => setD({ ...d, ending: v })} />
+      <OptionRow title="Point ended by" options={players} value={d.by ?? ''} cols="two" disabled={busy} onPick={(v) => setD({ ...d, by: v })} />
+      <OptionRow title="Ending" options={END_KINDS} value={d.kind ?? ''} cols="two" disabled={busy} onPick={(v) => setD({ ...d, kind: v })} />
       <OptionRow title="Stroke" options={STROKES} value={d.stroke} cols="two" disabled={busy} onPick={(v) => pick('stroke', v)} />
 
-      {isUnforced(d.ending) && (
+      {d.kind === 'error' && (
         <OptionRow title="Error type" options={RETURN_ERRORS} value={d.error ?? 'none'} disabled={busy} onPick={(v) => pick('error', v)} />
       )}
-      {d.ending && !isUnforced(d.ending) && (
+      {d.kind === 'winner' && (
         <>
           <h2>Optional</h2>
           <button
@@ -95,7 +104,7 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
       <OptionRow title="Shot type" options={SHOT_TYPES} value={d.shotType} disabled={busy} onPick={(v) => pick('shotType', v)} />
       <OptionRow title="Shot position" options={SHOT_POSITIONS} value={d.position} disabled={busy} onPick={(v) => pick('position', v)} />
 
-      <button type="button" className="btn btn-primary btn-big next-btn" disabled={!d.ending || busy} onClick={() => complete(d)}>
+      <button type="button" className="btn btn-primary btn-big next-btn" disabled={!endingOf(d) || busy} onClick={() => complete(d)}>
         Save point
       </button>
     </section>

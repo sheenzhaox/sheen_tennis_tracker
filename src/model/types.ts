@@ -108,7 +108,7 @@ export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error'
 export type RallyEnding = 'server_winner' | 'returner_winner' | 'server_error' | 'returner_error';
 export type Stroke = 'forehand' | 'backhand' | 'none';
 export type ShotDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'middle' | 'short_angle' | 'none';
-export type ShotType = 'topspin' | 'slice' | 'volley' | 'smash' | 'lob' | 'none';
+export type ShotType = 'topspin' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
 export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
 
 /** Details of the last shot of a rally. */
@@ -148,7 +148,7 @@ export const SERVE_RESULTS: { value: ServeResult; label: string }[] = [
   { value: 'ace', label: 'Ace (Unreturnable)' },
   { value: 'fault', label: 'Fault' },
   { value: 'return_winner', label: 'Return Ace' },
-  { value: 'return_error', label: 'Unforced Error Return' },
+  { value: 'return_error', label: 'Return error' },
   { value: 'in', label: 'Serve in' },
 ];
 
@@ -189,6 +189,7 @@ export const SHOT_TYPES: { value: Exclude<ShotType, 'none'>; label: string }[] =
   { value: 'volley', label: 'Volley' },
   { value: 'smash', label: 'Smash' },
   { value: 'lob', label: 'Lob' },
+  { value: 'dropshot', label: 'Dropshot' },
 ];
 
 export const SHOT_POSITIONS: { value: Exclude<ShotPosition, 'none'>; label: string }[] = [
