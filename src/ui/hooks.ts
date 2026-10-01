@@ -33,6 +33,7 @@ export function usePendingCount(): number {
         db.players.where('dirty').equals(1).count(),
         db.ruleSets.where('dirty').equals(1).count(),
         db.matches.where('dirty').equals(1).count(),
+        db.points.where('dirty').equals(1).count(),
       ]);
       return counts.reduce((a, b) => a + b, 0);
     }, []) ?? 0

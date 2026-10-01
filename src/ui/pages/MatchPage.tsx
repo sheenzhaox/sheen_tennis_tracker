@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
 import StartMatchPage from './StartMatchPage';
+import MatchTracker from './MatchTracker';
 import { db, deleteRecord, isLive } from '../../storage/db';
 import { describeRules } from '../../model/rules';
 import { navigate } from '../router';
@@ -41,26 +42,29 @@ export default function MatchPage({ id }: { id: string }) {
     <>
       <Header title={`${a} vs ${b}`} back="/match" />
       <main className="page">
-        <p>
-          <strong>{match.ruleSetName}</strong>
-          <br />
-          <span className="muted">{describeRules(match.rules)}</span>
-        </p>
-        <p className="muted">
-          {formatMatchDay(match)} · {surfaceLabel(match.surface)}
-          {match.startedAt ? ` · started ${formatTime(match.startedAt)}` : ''}
-          {match.firstServer ? ` · first server ${match.firstServer === 'A' ? a : b}` : ''}
-          {info && (
-            <>
-              <br />
-              {info}
-            </>
-          )}
-        </p>
-        <div className="placeholder">Point-by-point recording comes next (Phase 2-3).</div>
-        <button className="btn btn-danger" type="button" onClick={remove}>
-          Delete match
-        </button>
+        <MatchTracker match={match} nameA={a} nameB={b} />
+        <details className="match-details">
+          <summary>Match details</summary>
+          <p>
+            <strong>{match.ruleSetName}</strong>
+            <br />
+            <span className="muted">{describeRules(match.rules)}</span>
+          </p>
+          <p className="muted">
+            {formatMatchDay(match)} · {surfaceLabel(match.surface)}
+            {match.startedAt ? ` · started ${formatTime(match.startedAt)}` : ''}
+            {match.firstServer ? ` · first server ${match.firstServer === 'A' ? a : b}` : ''}
+            {info && (
+              <>
+                <br />
+                {info}
+              </>
+            )}
+          </p>
+          <button className="btn btn-danger" type="button" onClick={remove}>
+            Delete match
+          </button>
+        </details>
       </main>
     </>
   );

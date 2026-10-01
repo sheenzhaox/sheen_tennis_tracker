@@ -317,3 +317,151 @@ legend {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Match tracker */
+.tracker h2 {
+  margin: 1rem 0 0.4rem;
+}
+
+.serve-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--green-light);
+}
+
+.serve-no {
+  font-weight: 700;
+  color: var(--green);
+}
+
+.serve-no.second {
+  color: var(--danger);
+}
+
+.choice-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.choice-grid.two,
+.choice-grid.outcomes {
+  grid-template-columns: 1fr 1fr;
+}
+
+.choice-grid.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.choice-grid .btn {
+  min-height: 3.2rem;
+  padding: 0.6rem 0.4rem;
+}
+
+.btn.fault:not(.btn-primary) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.fault.btn-primary {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.next-btn {
+  margin-top: 1rem;
+}
+
+.undo-btn {
+  margin: 0.75rem 0 1rem;
+}
+
+.match-over {
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--green);
+  color: #fff;
+  text-align: center;
+  font-size: 1.15rem;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.score-table th,
+.score-table td {
+  padding: 0.55rem 0.5rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.score-table thead th {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.score-table tbody th {
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.score-table td.set-won {
+  font-weight: 700;
+}
+
+.score-table td.current {
+  background: var(--green-light);
+  font-weight: 700;
+}
+
+.score-table td.points {
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  min-width: 3rem;
+}
+
+.score-table tr.winner th {
+  color: var(--green);
+}
+
+.score-table sup {
+  font-size: 0.65em;
+  margin-left: 1px;
+}
+
+.serve-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+}
+
+.serve-dot.on {
+  background: #c0ca33;
+}
+
+.point-count {
+  text-align: right;
+}
+
+.match-details {
+  margin-top: 1.5rem;
+}
+
+.match-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}

@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** Cloud sync live and verified. Two-step match setup flow merged into `dev/build-match-tracker`, which Cloudflare builds as production (https://sheen-tennis-tracker.sheenzhaox.workers.dev).
-- **Next step:** User tests match setup on the live site. Then Phase 2: scoring engine + point tracking on the match page (on `dev/build-match-tracker`).
+- **Status:** Serve page + scoring engine (Phase 2) implemented on `dev/build-match-tracker`, tested locally, pushed (deploys to production). Remote D1 has `points` table (migration 0002).
+- **Next step:** User tests serve page live. Next ideas: rally page after "Serve in" (currently just "who won the point"), stats, break/set/match point indicators.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### Cloud sync setup checklist
@@ -154,6 +154,12 @@ src/
    - Step 1 setup (`#/match/new`, edit via `#/match/:id/edit`): date (default today), players A/B (select, or inline "+ New player..." creates one), surface (Hard / Clay / Synthetic grass / Grass), match info (event, round, venue/court, notes), match format (rule set + summary). "Next" saves match with status `scheduled`.
    - Step 2 start (`#/match/:id` while scheduled, `StartMatchPage`): summary, "Who serves first?", Start match -> sets `firstServer`, `status: in_progress`, `startedAt` timestamp. Then match page (point tracking placeholder).
    - Model: `MatchStatus` + `scheduled`; `Surface` = hard | clay | synthetic_grass | grass; Match adds `date`, `event`, `round`, `createdAt`; `firstServer`/`startedAt` optional; `indoor` removed. Match lists sorted in memory (startedAt ?? createdAt); Matches page has "Not started" section.
+12. Serve page + scoring engine (`dev/build-match-tracker`):
+   - Engine `src/engine/score.ts`: `computeScore(rules, firstServer, winners)` replays point winners -> sets/games/points, tiebreak + match tiebreak, no-ad, deciding-set variants, server (tiebreak 1-2-2 rotation; TB counts as a game), deuce/ad side, match winner. `pointLabels` (0/15/30/40/AD). 12 tests in `score.test.ts`.
+   - Point model (`Point`): matchId, seq, server, winner, serves[] ({result, location, type}), end (ace | double_fault | return_winner | return_error | rally). Dexie v3 `points` table; synced (worker kind `points`, D1 migration `0002_points.sql`).
+   - Serve page (`MatchTracker.tsx`, shown on match page when in progress/completed): row 1 outcome (Ace (Unreturnable) / Fault / Serve in / Return Ace / Unforced Error Return), row 2 location (Wide/Body/T), row 3 type (Flat/Slice/Kick). Location/type optional -> saved as `none`. Tapping a type completes the serve; otherwise "Next". 1st-serve fault -> 2nd serve; 2nd fault -> double fault (receiver wins). Ace / UE return -> server wins; Return Ace -> receiver wins. Serve in -> temporary "who won the point?" (rally page TBD). Undo steps back within a point, then deletes last point (reopens a completed match). Match auto-completes on match point.
+   - Score table (`ScoreTable.tsx`) at bottom: completed sets (tiebreak loser points as superscript, match tiebreak as [10]), current set games, current points; serve dot.
+   - Draft serves (e.g. after a 1st-serve fault) are kept in memory only; a reload mid-point restarts that point.
 
 ## Open Questions / TODO
 

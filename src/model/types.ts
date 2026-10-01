@@ -79,3 +79,49 @@ export interface Match extends Syncable {
   createdAt?: number;
   updatedAt: number;
 }
+
+export type ServeResult = 'ace' | 'fault' | 'in' | 'return_winner' | 'return_error';
+export type ServeLocation = 'wide' | 'body' | 't' | 'none';
+export type ServeType = 'flat' | 'slice' | 'kick' | 'none';
+
+export interface Serve {
+  result: ServeResult;
+  location: ServeLocation;
+  type: ServeType;
+}
+
+export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error' | 'rally';
+
+export interface Point extends Syncable {
+  id: string;
+  matchId: string;
+  /** 0-based order within the match. */
+  seq: number;
+  server: Side;
+  winner: Side;
+  /** One entry per serve hit (1 or 2). */
+  serves: Serve[];
+  end: PointEnd;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const SERVE_RESULTS: { value: ServeResult; label: string }[] = [
+  { value: 'ace', label: 'Ace (Unreturnable)' },
+  { value: 'fault', label: 'Fault' },
+  { value: 'in', label: 'Serve in' },
+  { value: 'return_winner', label: 'Return Ace' },
+  { value: 'return_error', label: 'Unforced Error Return' },
+];
+
+export const SERVE_LOCATIONS: { value: Exclude<ServeLocation, 'none'>; label: string }[] = [
+  { value: 'wide', label: 'Wide' },
+  { value: 'body', label: 'Body' },
+  { value: 't', label: 'T' },
+];
+
+export const SERVE_TYPES: { value: Exclude<ServeType, 'none'>; label: string }[] = [
+  { value: 'flat', label: 'Flat' },
+  { value: 'slice', label: 'Slice' },
+  { value: 'kick', label: 'Kick' },
+];

@@ -1,18 +1,19 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Match, Player, RuleSet } from '../model/types';
+import type { Match, Player, Point, RuleSet } from '../model/types';
 
 export interface MetaEntry {
   key: string;
   value: unknown;
 }
 
-export type SyncTable = 'players' | 'ruleSets' | 'matches';
-export const SYNC_TABLES: SyncTable[] = ['players', 'ruleSets', 'matches'];
+export type SyncTable = 'players' | 'ruleSets' | 'matches' | 'points';
+export const SYNC_TABLES: SyncTable[] = ['players', 'ruleSets', 'matches', 'points'];
 
 export const db = new Dexie('sheen-tennis-tracker') as Dexie & {
   players: EntityTable<Player, 'id'>;
   ruleSets: EntityTable<RuleSet, 'id'>;
   matches: EntityTable<Match, 'id'>;
+  points: EntityTable<Point, 'id'>;
   meta: EntityTable<MetaEntry, 'key'>;
 };
 
@@ -30,8 +31,17 @@ db.version(2)
     meta: 'key',
   })
   .upgrade(async (tx) => {
-    for (const t of SYNC_TABLES) await tx.table(t).toCollection().modify({ dirty: 1 });
+    for (const t of ['players', 'ruleSets', 'matches']) await tx.table(t).toCollection().modify({ dirty: 1 });
   });
+
+db.version(3).stores({
+  points: 'id, matchId, dirty',
+});
+
+export async function pointsForMatch(matchId: string): Promise<Point[]> {
+  const points = await db.points.where('matchId').equals(matchId).filter((p) => !p.deletedAt).toArray();
+  return points.sort((x, y) => x.seq - y.seq || x.createdAt - y.createdAt);
+}
 
 export const newId = () => crypto.randomUUID();
 

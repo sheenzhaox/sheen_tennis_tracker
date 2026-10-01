@@ -5,7 +5,7 @@ interface Env {
   API_TOKEN?: string;
 }
 
-const TABLES = { players: 'players', ruleSets: 'rule_sets', matches: 'matches' } as const;
+const TABLES = { players: 'players', ruleSets: 'rule_sets', matches: 'matches', points: 'points' } as const;
 type Kind = keyof typeof TABLES;
 
 interface SyncRecord {
