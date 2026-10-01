@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** Phase 1 scaffold done locally (build + PWA service worker + icons OK). Not yet committed/pushed; Cloudflare account not yet created.
-- **Next step:** (a) User commits/pushes; when ready, create Cloudflare account and connect repo to Pages (build `npm run build`, output `dist`). (b) Start Phase 2: scoring engine + tests.
+- **Status:** Phase 1 deployed (https://sheen-tennis-tracker.sheenzhaox.workers.dev). Phase 1.5 (main page + Players + Rules + Start/Resume match, local Dexie DB) implemented locally, build + tests pass; not yet committed.
+- **Next step:** User reviews UI; commit/push. Then Phase 2: scoring engine (uses `Rules` from `src/model/types.ts`) + tests.
 - **Commands:** `npm run dev` (local), `npm run build`, `npm test`, `npm run icons` (regenerate icons from `public/logo.svg`).
 
 ## Feasibility Analysis (2026-10-01)
@@ -84,7 +84,7 @@ src/
 1. **Phase 1:** Scaffold Vite + React + TS + PWA; connect repo to Cloudflare Pages (build `npm run build`, output `dist`).
 2. **Phase 2:** Scoring engine + rules + unit tests (Vitest).
 3. **Phase 3:** Match setup + point entry UI + scoreboard + undo; local storage (IndexedDB).
-4. **Phase 4:** Cloudflare D1 schema, Pages Functions API (`/api/*`), Cloudflare Access auth, background sync.
+4. **Phase 4:** Cloudflare D1 schema, Worker API routes (`/api/*`) via `wrangler.jsonc` (`main` + `assets` + D1 binding), Cloudflare Access auth, background sync.
 5. **Phase 5:** History, stats (1st serve %, points won on 1st/2nd serve, winners/UE, rally length dist.), CSV/JSON export.
 6. **Phase 6 (optional, not needed now):** Live spectator view.
 
@@ -101,6 +101,7 @@ src/
 | 2026-10-01 | Hosting alternatives reviewed: Cloudflare Pages, Vercel, Netlify, Firebase Hosting, Render | Frontend is static, so host is swappable |
 | 2026-10-01 | **Recommended:** Supabase (Postgres) for data; GitHub Pages if repo public, else Cloudflare Pages | SQL suits analysis better than Firestore; Vercel Hobby is non-commercial only |
 | 2026-10-01 | **DECIDED: Cloudflare Pages for hosting** (replaces GitHub Pages) | Free for private repos, preview URL per branch, no deploy workflow needed |
+| 2026-10-01 | Actually deployed as **Cloudflare Worker with static assets** (workers.dev), not Pages | Cloudflare's recommended path; fine. API in Phase 4 = Worker script instead of Pages Functions; D1/Access unchanged. No wrangler config in repo yet (dashboard defaults) |
 | 2026-10-01 | DECIDED: React + TS; singles only; single user; no live view (for now) | Keep engine extensible for doubles; multi-user later |
 | 2026-10-01 | Backend: **D1 recommended** over Supabase given current scope | Same platform/deploy; no inactivity pause (Supabase free pauses after ~7 days idle); SQL (SQLite) fine for analysis; auth via Cloudflare Access (free) on `/api/*`. Cost: write small API in Pages Functions. KV not needed. Supabase stays the fallback if multi-user/realtime needs grow |
 
@@ -113,6 +114,15 @@ src/
 4. Confirmed scope (React+TS, singles, single user, no live view); compared D1 vs Supabase -> D1 recommended.
 5. D1 confirmed. Phase 1 scaffold: package.json, tsconfig, vite.config.ts (PWA manifest, Vitest), index.html, `public/logo.svg` + generated icons, `src/main.tsx`, `src/ui/App.tsx` placeholder, `src/index.css`, .gitignore. Build and test pass.
 6. Cloudflare account: not needed until deploying (phone PWA testing needs HTTPS) and Phase 4 (D1, Access). Free, no card required.
+7. Deployed as Cloudflare Worker static assets at https://sheen-tennis-tracker.sheenzhaox.workers.dev.
+8. Phase 1.5 - main page & data management (Dexie brought forward from Phase 3):
+   - Home: Start/Resume a match (shows in-progress count), Players, Rules.
+   - Hash router (`src/ui/router.ts`): `#/`, `#/players[/new|/:id]`, `#/rules[/new?from=:id|/:id]`, `#/match[/new|/:id]`.
+   - Dexie DB `sheen-tennis-tracker` v1 (`src/storage/db.ts`): `players`, `ruleSets` (custom only), `matches` (indexed by status, startedAt, playerAId, playerBId).
+   - Players: add/edit/delete (delete blocked if player has matches); player page lists linked matches.
+   - Rules: 7 built-in presets in code (`src/model/rules.ts`, read-only, can be duplicated) + custom rule sets in DB; `describeRules`, `validateRules` (+ tests).
+   - Matches: new-match form (players, rules, first server, surface, indoor, venue; quick-add player returns to form). Match stores a **snapshot of rules**. Match page is a placeholder for Phase 3 point entry.
+   - `navigator.storage.persist()` requested on startup.
 
 ## Open Questions / TODO
 
@@ -124,5 +134,7 @@ src/
 - [x] Single user now; multi-user maybe later
 - [x] Hosting: Cloudflare Pages (repo can be public or private)
 - [x] Scaffold project structure (Phase 1, local)
-- [ ] Create Cloudflare account + connect repo to Pages
+- [x] Create Cloudflare account + connect repo (deployed to workers.dev)
+- [ ] Test install + offline on phone
+- [x] Main page + Players + Rules + Start/Resume match (local)
 - [ ] Phase 2: scoring engine + tests
