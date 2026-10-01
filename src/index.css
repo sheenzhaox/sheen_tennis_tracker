@@ -464,6 +464,33 @@ legend {
 
 .point-count {
   text-align: right;
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+}
+
+/* Score table pinned to the bottom of the screen while tracking. */
+.score-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.score-dock .score-table th,
+.score-dock .score-table td {
+  padding: 0.35rem 0.5rem;
+}
+
+/* Keep the last content above the docked score table. */
+.page:has(.score-dock) {
+  padding-bottom: 10rem;
 }
 
 .match-details {

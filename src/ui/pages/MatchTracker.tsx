@@ -239,8 +239,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
         Undo
       </button>
 
-      <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
-      <p className="muted point-count">Points played: {points.length}</p>
+      <div className="score-dock">
+        <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
+        <p className="muted point-count">Points played: {points.length}</p>
+      </div>
     </div>
   );
 }
