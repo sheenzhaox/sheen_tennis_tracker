@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ScoreTable from '../components/ScoreTable';
+import OptionRow from '../components/OptionRow';
+import RallyEntry from '../components/RallyEntry';
 import { computeScore, other } from '../../engine/score';
 import { deleteRecord, newId, pointsForMatch, saveRecord } from '../../storage/db';
 import {
@@ -10,9 +12,11 @@ import {
   SERVE_LOCATIONS,
   SERVE_RESULTS,
   SERVE_TYPES,
+  rallyWonByServer,
   type Match,
   type Point,
   type PointEnd,
+  type RallyDetail,
   type ReturnDirection,
   type ReturnError,
   type ReturnStroke,
@@ -71,7 +75,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
 
   const resetServe = () => setSel(EMPTY);
 
-  async function recordPoint(serves: Serve[], end: PointEnd, winner: Side) {
+  async function recordPoint(serves: Serve[], end: PointEnd, winner: Side, rallyDetail?: RallyDetail) {
     setBusy(true);
     try {
       const now = Date.now();
@@ -83,6 +87,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
         winner,
         serves,
         end,
+        rally: rallyDetail,
         createdAt: now,
         updatedAt: now,
       });
@@ -170,7 +175,9 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
             <span>
               <strong>{name(server)}</strong> serving
             </span>
-            <span className={`serve-no ${serveNo === 2 ? 'second' : ''}`}>{serveNo === 1 ? '1st serve' : '2nd serve'}</span>
+            <span className={`serve-no ${serveNo === 2 && !rally ? 'second' : ''}`}>
+              {rally ? 'Rally' : serveNo === 1 ? '1st serve' : '2nd serve'}
+            </span>
             <span className="muted">
               {score.side === 'deuce' ? 'Deuce court' : 'Ad court'}
               {score.isMatchTiebreak ? ' · Match tiebreak' : score.inTiebreak ? ' · Tiebreak' : ''}
@@ -178,16 +185,12 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
           </div>
 
           {rally ? (
-            <section>
-              <h2>Serve in - who won the point?</h2>
-              <div className="choice-grid two">
-                {(['A', 'B'] as const).map((s) => (
-                  <button key={s} type="button" className="btn btn-big" disabled={busy} onClick={() => void recordPoint(draft, 'rally', s)}>
-                    {name(s)}
-                  </button>
-                ))}
-              </div>
-            </section>
+            <RallyEntry
+              serverName={name(server)}
+              returnerName={name(receiver)}
+              busy={busy}
+              onComplete={(r) => void recordPoint(draft, 'rally', rallyWonByServer(r.ending) ? server : receiver, r)}
+            />
           ) : (
             <section className="serve-entry">
               <h2>Outcome</h2>
@@ -239,36 +242,5 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
       <p className="muted point-count">Points played: {points.length}</p>
     </div>
-  );
-}
-
-interface RowProps<T extends string> {
-  title: string;
-  options: { value: T; label: string }[];
-  value: string;
-  cols?: 'two' | 'three';
-  disabled: boolean;
-  onPick: (value: T) => void;
-}
-
-function OptionRow<T extends string>({ title, options, value, cols = 'three', disabled, onPick }: RowProps<T>) {
-  return (
-    <>
-      <h2>{title}</h2>
-      <div className={`choice-grid ${cols}`}>
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            className={`btn ${value === o.value ? 'btn-primary' : ''}`}
-            aria-pressed={value === o.value}
-            disabled={disabled}
-            onClick={() => onPick(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </>
   );
 }

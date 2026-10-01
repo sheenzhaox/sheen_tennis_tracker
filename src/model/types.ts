@@ -104,6 +104,30 @@ export interface Serve {
 
 export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error' | 'rally';
 
+/** How a rally ended: a winner/forced error by one player, or an unforced error. */
+export type RallyEnding = 'server_winner' | 'returner_winner' | 'server_error' | 'returner_error';
+export type Stroke = 'forehand' | 'backhand' | 'none';
+export type ShotDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'middle' | 'short_angle' | 'none';
+export type ShotType = 'topspin' | 'slice' | 'volley' | 'smash' | 'lob' | 'none';
+export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
+
+/** Details of the last shot of a rally. */
+export interface RallyDetail {
+  /** Number of shots; null when not counted. */
+  count: number | null;
+  ending: RallyEnding;
+  stroke: Stroke;
+  /** Only for unforced errors. */
+  error?: ReturnError;
+  /** Only for winners / forced errors. */
+  lucky?: boolean;
+  direction: ShotDirection;
+  shotType: ShotType;
+  position: ShotPosition;
+}
+
+export const rallyWonByServer = (e: RallyEnding) => e === 'server_winner' || e === 'returner_error';
+
 export interface Point extends Syncable {
   id: string;
   matchId: string;
@@ -114,6 +138,8 @@ export interface Point extends Syncable {
   /** One entry per serve hit (1 or 2). */
   serves: Serve[];
   end: PointEnd;
+  /** Set when the serve went in and the point was played out. */
+  rally?: RallyDetail;
   createdAt: number;
   updatedAt: number;
 }
@@ -141,6 +167,34 @@ export const RETURN_ERRORS: { value: Exclude<ReturnError, 'none'>; label: string
   { value: 'net', label: 'Net' },
   { value: 'long', label: 'Long' },
   { value: 'wide', label: 'Wide' },
+];
+
+export const STROKES: { value: Exclude<Stroke, 'none'>; label: string }[] = [
+  { value: 'forehand', label: 'Forehand' },
+  { value: 'backhand', label: 'Backhand' },
+];
+
+export const SHOT_DIRECTIONS: { value: Exclude<ShotDirection, 'none'>; label: string }[] = [
+  { value: 'crosscourt', label: 'Cross court' },
+  { value: 'down_the_line', label: 'Down the line' },
+  { value: 'inside_out', label: 'Inside out' },
+  { value: 'inside_in', label: 'Inside in' },
+  { value: 'middle', label: 'Middle' },
+  { value: 'short_angle', label: 'Short angle' },
+];
+
+export const SHOT_TYPES: { value: Exclude<ShotType, 'none'>; label: string }[] = [
+  { value: 'topspin', label: 'Topspin' },
+  { value: 'slice', label: 'Slice' },
+  { value: 'volley', label: 'Volley' },
+  { value: 'smash', label: 'Smash' },
+  { value: 'lob', label: 'Lob' },
+];
+
+export const SHOT_POSITIONS: { value: Exclude<ShotPosition, 'none'>; label: string }[] = [
+  { value: 'baseline', label: 'Baseline' },
+  { value: 'approach', label: 'Approach' },
+  { value: 'net', label: 'Net' },
 ];
 
 export const SERVE_LOCATIONS: { value: Exclude<ServeLocation, 'none'>; label: string }[] = [

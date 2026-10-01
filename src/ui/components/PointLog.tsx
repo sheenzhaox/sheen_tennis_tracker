@@ -8,8 +8,13 @@ import {
   SERVE_LOCATIONS,
   SERVE_RESULTS,
   SERVE_TYPES,
+  SHOT_DIRECTIONS,
+  SHOT_POSITIONS,
+  SHOT_TYPES,
+  STROKES,
   type Match,
   type PointEnd,
+  type RallyDetail,
   type Serve,
   type Side,
 } from '../../model/types';
@@ -33,6 +38,22 @@ function describeServe(s: Serve, n: number): string {
     if (r.length) text += ` - ${r.join(', ')}`;
   }
   return text;
+}
+
+function describeRally(r: RallyDetail, serverName: string, returnerName: string): string {
+  const who = r.ending.startsWith('server') ? serverName : returnerName;
+  const how = r.ending.endsWith('winner') ? 'winner & forced error' : 'unforced error';
+  const parts = [
+    `Rally ${r.count ?? 'None'}`,
+    `${who} ${how}`,
+    label(STROKES, r.stroke),
+    label(RETURN_ERRORS, r.error),
+    r.lucky ? 'Lucky ball' : undefined,
+    label(SHOT_DIRECTIONS, r.direction),
+    label(SHOT_TYPES, r.shotType),
+    label(SHOT_POSITIONS, r.position),
+  ];
+  return parts.filter(Boolean).join(', ');
 }
 
 interface Props {
@@ -67,6 +88,7 @@ export default function PointLog({ match, nameA, nameB }: Props) {
               <strong>{name(p.winner)}</strong> won <span className="muted">· {END_LABELS[p.end]} · {name(p.server)} serving</span>
             </div>
             <div className="muted">{p.serves.map(describeServe).join(' | ')}</div>
+            {p.rally && <div className="muted">{describeRally(p.rally, name(p.server), name(p.server === 'A' ? 'B' : 'A'))}</div>}
           </li>
         );
       })}

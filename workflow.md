@@ -14,7 +14,7 @@
 ## Current Checkpoint
 
 - **Status:** Serve page + scoring engine (Phase 2) implemented on `dev/build-match-tracker`, tested locally, pushed (deploys to production). Remote D1 has `points` table (migration 0002).
-- **Next step:** User tests serve page live. Next ideas: rally page after "Serve in" (currently just "who won the point"), stats, break/set/match point indicators.
+- **Next step:** User tests serve + rally pages live. Next ideas: stats/analysis views, break/set/match point indicators, persisting the in-progress point draft.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### Cloud sync setup checklist
@@ -162,6 +162,7 @@ src/
    - Draft serves (e.g. after a 1st-serve fault) are kept in memory only; a reload mid-point restarts that point.
 13. Serve page update: outcome order Ace / Fault / Return Ace / Unforced Error Return / Serve in (last, full width). Return Ace or UE Return reveal rows: Return (Forehand/Backhand return), Return direction (Crosscourt/Down the line/Inside out); UE Return adds Return error (Net/Long/Wide). All optional (`none`). Stored on the serve as `return: {stroke, direction, error?}`. Return rows are shown **after** Serve location / Serve type. Picking a value in the last visible row (Serve type, or Return direction / Return error for return outcomes) completes the serve; otherwise "Next".
 14. Match details (collapsed `<details>` on match page): when expanded, shows "Point by point" log (`PointLog.tsx`): per point the score before it (completed sets · games · points, A-B order; TB/MTB marked), then who won (+ how the point ended, who served), then serve details (1st/2nd: outcome, location, type, return stroke/direction/error).
+15. Rally page (`RallyEntry.tsx`, after "Serve in"; status bar shows "Rally"): long "+ Rally count" button (null/None if never pressed); Point ending (2x2, player names): server winner & forced error / returner winner & forced error / server unforced error / returner unforced error; Stroke (Forehand/Backhand); if unforced error -> Error type (Net/Long/Wide); if winner & forced error -> optional "Lucky ball" toggle; Shot direction (Cross court/Down the line/Inside out/Inside in/Middle/Short angle); Shot type (Topspin/Slice/Volley/Smash/Lob); Shot position (Baseline/Approach/Net). Only Point ending is required; picking Shot position completes the point, else "Save point". Winner: server for server winner / returner UE, else returner. Stored as `point.rally: RallyDetail` (`count, ending, stroke, error?|lucky?, direction, shotType, position`). Point log shows a rally line. `OptionRow` moved to `src/ui/components/OptionRow.tsx`.
 
 ## Open Questions / TODO
 
