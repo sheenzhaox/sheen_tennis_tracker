@@ -161,6 +161,7 @@ src/
    - Score table (`ScoreTable.tsx`) at bottom: completed sets (tiebreak loser points as superscript, match tiebreak as [10]), current set games, current points; serve dot.
    - Draft serves (e.g. after a 1st-serve fault) are kept in memory only; a reload mid-point restarts that point.
 13. Serve page update: outcome order Ace / Fault / Return Ace / Unforced Error Return / Serve in (last, full width). Return Ace or UE Return reveal rows: Return (Forehand/Backhand return), Return direction (Crosscourt/Down the line/Inside out); UE Return adds Return error (Net/Long/Wide). All optional (`none`). Stored on the serve as `return: {stroke, direction, error?}`. Return rows are shown **after** Serve location / Serve type. Picking a value in the last visible row (Serve type, or Return direction / Return error for return outcomes) completes the serve; otherwise "Next".
+14. Match details (collapsed `<details>` on match page): when expanded, shows "Point by point" log (`PointLog.tsx`): per point the score before it (completed sets · games · points, A-B order; TB/MTB marked), then who won (+ how the point ended, who served), then serve details (1st/2nd: outcome, location, type, return stroke/direction/error).
 
 ## Open Questions / TODO
 

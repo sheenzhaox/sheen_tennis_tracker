@@ -469,3 +469,19 @@ legend {
   cursor: pointer;
   color: var(--muted);
 }
+
+.point-log {
+  margin: 0 0 1rem;
+  padding-left: 1.6rem;
+}
+
+.point-log li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+
+.point-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

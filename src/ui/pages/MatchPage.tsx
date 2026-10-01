@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
+import PointLog from '../components/PointLog';
 import StartMatchPage from './StartMatchPage';
 import MatchTracker from './MatchTracker';
 import { db, deleteRecord, isLive } from '../../storage/db';
@@ -14,6 +16,7 @@ export default function MatchPage({ id }: { id: string }) {
     return isLive(m) ? m : null;
   }, [id]);
   const names = usePlayerNames();
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (match === undefined) return null;
   if (match === null) {
@@ -43,7 +46,7 @@ export default function MatchPage({ id }: { id: string }) {
       <Header title={`${a} vs ${b}`} back="/match" />
       <main className="page">
         <MatchTracker match={match} nameA={a} nameB={b} />
-        <details className="match-details">
+        <details className="match-details" onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>
           <summary>Match details</summary>
           <p>
             <strong>{match.ruleSetName}</strong>
@@ -61,6 +64,8 @@ export default function MatchPage({ id }: { id: string }) {
               </>
             )}
           </p>
+          <h2>Point by point</h2>
+          {detailsOpen && <PointLog match={match} nameA={a} nameB={b} />}
           <button className="btn btn-danger" type="button" onClick={remove}>
             Delete match
           </button>
