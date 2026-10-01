@@ -13,9 +13,17 @@
 
 ## Current Checkpoint
 
-- **Status:** Serve page + scoring engine (Phase 2) implemented on `dev/build-match-tracker`, tested locally, pushed (deploys to production). Remote D1 has `points` table (migration 0002).
-- **Next step:** User tests serve + rally pages live. Next ideas: stats/analysis views, break/set/match point indicators, persisting the in-progress point draft.
+- **Status (2026-10-02, session paused):** All work committed and pushed on `dev/build-match-tracker` (Cloudflare production branch -> live at https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page, rally page, scoring engine, point-by-point log, pinned score table, cloud sync (D1). `main` is behind and not deployed.
+- **Next step (ideas, not started):** stats/analysis views per match and per player; break/set/match point indicators; persist the in-progress point draft across reloads; export (CSV/JSON); optionally bring `main` up to date.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
+
+### How to resume (new session)
+1. Open the folder in VS Code; `git checkout dev/build-match-tracker` and `git pull`.
+2. Ask Copilot: "Read workflow.md and resume from the latest checkpoint."
+3. In each new terminal: `$env:NODE_OPTIONS='--use-system-ca'` (company TLS inspection) before `npx wrangler ...`. Check login with `npx wrangler whoami`.
+4. Local dev: `npm install` (if needed) -> `npm run build` -> `npm run dev:api` (terminal 1) -> `npm run dev` (terminal 2) -> http://localhost:5173 (Settings token: `dev-token`).
+5. Deploy = commit + push to `dev/build-match-tracker`. If a change adds a table/column: create `migrations/000N_*.sql` and run `npm run db:migrate:remote` **before** pushing.
+6. Sync token is only in your password manager (Cloudflare can't show it). To rotate: `npx wrangler secret put API_TOKEN` + `npx wrangler preview base-config secret put API_TOKEN`, then re-enter in Settings on each device.
 
 ### Cloud sync setup checklist
 - [x] Cloudflare agent setup: 16 Cloudflare skills installed globally (`~/.agents/skills`), MCP servers in `.vscode/mcp.json` (cloudflare, docs, bindings, builds, observability; OAuth on first use)
