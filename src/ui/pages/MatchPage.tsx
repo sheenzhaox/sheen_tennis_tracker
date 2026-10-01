@@ -1,13 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
-import { db } from '../../storage/db';
+import { db, deleteRecord, isLive } from '../../storage/db';
 import { describeRules } from '../../model/rules';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
 import { formatDate } from '../format';
 
 export default function MatchPage({ id }: { id: string }) {
-  const match = useLiveQuery(async () => (await db.matches.get(id)) ?? null, [id]);
+  const match = useLiveQuery(async () => {
+    const m = await db.matches.get(id);
+    return isLive(m) ? m : null;
+  }, [id]);
   const names = usePlayerNames();
 
   if (match === undefined) return null;
@@ -27,7 +30,7 @@ export default function MatchPage({ id }: { id: string }) {
 
   async function remove() {
     if (!confirm('Delete this match and all its recorded data?')) return;
-    await db.matches.delete(id);
+    await deleteRecord('matches', id);
     navigate('/match');
   }
 

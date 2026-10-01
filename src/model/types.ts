@@ -1,7 +1,13 @@
 export type Handedness = 'right' | 'left';
 export type Backhand = 'one-handed' | 'two-handed';
 
-export interface Player {
+/** Fields used by cloud sync; deleted records are kept as tombstones so deletes propagate. */
+export interface Syncable {
+  deletedAt?: number;
+  dirty?: 0 | 1;
+}
+
+export interface Player extends Syncable {
   id: string;
   name: string;
   handedness?: Handedness;
@@ -29,7 +35,7 @@ export interface Rules {
   matchTiebreakPoints: number;
 }
 
-export interface RuleSet {
+export interface RuleSet extends Syncable {
   id: string;
   name: string;
   rules: Rules;
@@ -42,7 +48,7 @@ export type MatchStatus = 'in_progress' | 'completed' | 'abandoned';
 export type Surface = 'hard' | 'clay' | 'grass' | 'carpet' | 'other';
 export type Side = 'A' | 'B';
 
-export interface Match {
+export interface Match extends Syncable {
   id: string;
   playerAId: string;
   playerBId: string;

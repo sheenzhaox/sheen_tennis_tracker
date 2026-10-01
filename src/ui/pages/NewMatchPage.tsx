@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import Header from '../components/Header';
-import { db, newId } from '../../storage/db';
+import { newId, saveRecord } from '../../storage/db';
 import { DEFAULT_RULE_SET_ID, describeRules } from '../../model/rules';
 import type { Side, Surface } from '../../model/types';
 import { navigate } from '../router';
@@ -30,7 +30,7 @@ export default function NewMatchPage() {
     if (!ruleSet) return setError('Choose the rules.');
     const now = Date.now();
     const id = newId();
-    await db.matches.add({
+    await saveRecord('matches', {
       id,
       playerAId,
       playerBId,

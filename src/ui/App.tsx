@@ -7,6 +7,7 @@ import RuleEditPage from './pages/RuleEditPage';
 import MatchesPage from './pages/MatchesPage';
 import NewMatchPage from './pages/NewMatchPage';
 import MatchPage from './pages/MatchPage';
+import SettingsPage from './pages/SettingsPage';
 
 const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value) ? value : null);
 
@@ -23,6 +24,8 @@ export default function App() {
     case 'match':
       if (id === 'new') return <NewMatchPage />;
       return id ? <MatchPage id={id} /> : <MatchesPage />;
+    case 'settings':
+      return <SettingsPage />;
     default:
       return <HomePage />;
   }

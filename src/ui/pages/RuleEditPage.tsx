@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
-import { db, newId } from '../../storage/db';
+import { db, deleteRecord, isLive, newId, saveRecord } from '../../storage/db';
 import { BUILT_IN_RULE_SETS, DEFAULT_RULES, describeRules, validateRules } from '../../model/rules';
 import type { FinalSetFormat, RuleSet, Rules } from '../../model/types';
 import { navigate } from '../router';
@@ -12,7 +12,10 @@ interface Props {
 }
 
 async function findRuleSet(id: string): Promise<RuleSet | null> {
-  return BUILT_IN_RULE_SETS.find((r) => r.id === id) ?? (await db.ruleSets.get(id)) ?? null;
+  const builtIn = BUILT_IN_RULE_SETS.find((r) => r.id === id);
+  if (builtIn) return builtIn;
+  const custom = await db.ruleSets.get(id);
+  return isLive(custom) ? custom : null;
 }
 
 export default function RuleEditPage({ id, copyFrom }: Props) {
@@ -75,19 +78,18 @@ function RuleForm({ initial, isNew }: { initial: RuleSet; isNew: boolean }) {
     setErrors(errs);
     if (errs.length) return;
     const now = Date.now();
-    await db.ruleSets.put({
+    await saveRecord('ruleSets', {
       ...initial,
       name: name.trim(),
       rules,
       createdAt: initial.createdAt ?? now,
-      updatedAt: now,
     });
     navigate('/rules');
   }
 
   async function remove() {
     if (!confirm(`Delete "${initial.name}"? Matches already played keep their own copy of the rules.`)) return;
-    await db.ruleSets.delete(initial.id);
+    await deleteRecord('ruleSets', initial.id);
     navigate('/rules');
   }
 

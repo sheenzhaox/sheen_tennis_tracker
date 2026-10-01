@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'Sheen Tennis Tracker',
@@ -26,6 +29,9 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    proxy: { '/api': 'http://127.0.0.1:8787' },
+  },
   test: {
     environment: 'node',
   },

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
-import { db, matchesForPlayer, newId } from '../../storage/db';
+import { db, deleteRecord, isLive, matchesForPlayer, newId, saveRecord } from '../../storage/db';
 import type { Backhand, Handedness, Player } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
@@ -15,7 +15,11 @@ interface Props {
 export default function PlayerEditPage({ id, returnTo }: Props) {
   const isNew = id === 'new';
   const player = useLiveQuery(
-    async () => (isNew ? null : ((await db.players.get(id)) ?? null)),
+    async () => {
+      if (isNew) return null;
+      const p = await db.players.get(id);
+      return isLive(p) ? p : null;
+    },
     [id],
   );
 
@@ -62,7 +66,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
       createdAt: player?.createdAt ?? now,
       updatedAt: now,
     };
-    await db.players.put(data);
+    await saveRecord('players', data);
     navigate(back);
   }
 
@@ -70,7 +74,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
     if (!player) return;
     if (matches.length > 0) return setError('This player has recorded matches and cannot be deleted.');
     if (!confirm(`Delete ${player.name}?`)) return;
-    await db.players.delete(player.id);
+    await deleteRecord('players', player.id);
     navigate('/players');
   }
 

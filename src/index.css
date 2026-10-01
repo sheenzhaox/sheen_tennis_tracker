@@ -121,6 +121,11 @@ h2 {
   gap: 1rem;
 }
 
+.home-sync {
+  text-align: center;
+  text-decoration: none;
+}
+
 /* Buttons */
 .btn {
   display: block;

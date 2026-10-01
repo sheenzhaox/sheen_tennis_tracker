@@ -1,0 +1,12 @@
+{
+  // Used only to apply migrations to the Preview database (see wrangler.jsonc `previews`).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "sheen-tennis-tracker-preview",
+      "database_id": "a8b2a5f4-96db-4bee-a04b-839ac21af1be",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

@@ -7,15 +7,26 @@
 
 - **Name:** sheen_tennis_tracker
 - **Goal:** Mobile web app (PWA, no native iOS/Android) to record live tennis matches point by point, with point details (serve 1st/2nd, rally, outcome, etc.), automatic scoring under configurable match rules, and cloud storage for later analysis.
-- **Hosting (dev):** Cloudflare Pages (DECIDED), connected to this GitHub repo via Git integration.
-- **Tech stack:** Vite 8 + React 19 + TypeScript (DECIDED), vite-plugin-pwa, Dexie (IndexedDB, Phase 3), backend: Cloudflare D1 + Pages Functions + Cloudflare Access (DECIDED), Vitest.
+- **Hosting (dev):** Cloudflare Worker with static assets (https://sheen-tennis-tracker.sheenzhaox.workers.dev), auto-built from GitHub.
+- **Tech stack:** Vite 8 + React 19 + TypeScript, vite-plugin-pwa, Dexie (IndexedDB), backend: Cloudflare Worker API (`worker/index.ts`) + D1, auth: bearer sync token (Worker secret `API_TOKEN`), Vitest, Wrangler 4.
 - **Scope (current stage):** singles only, single user (me), no spectator live view. Multi-user may come later.
 
 ## Current Checkpoint
 
-- **Status:** Phase 1.5 committed and pushed to `main` (commit 10bd162). Working on branch `dev/build-match-tracker` for Phase 2.
-- **Next step:** Phase 2: scoring engine (uses `Rules` from `src/model/types.ts`) + tests.
-- **Commands:** `npm run dev` (local), `npm run build`, `npm test`, `npm run icons` (regenerate icons from `public/logo.svg`).
+- **Status:** On branch `dev/build-match-tracker`: cloud sync (Phase 4, brought forward) implemented and verified locally (wrangler dev + local D1: push, pull to wiped device, delete propagation). NOT yet committed. Cloudflare-side setup pending (see "Cloud sync setup checklist").
+- **Next step:** User completes checklist (wrangler login, create 2 D1 DBs, put IDs in `wrangler.jsonc`, remote migrations, `API_TOKEN` secret, check build settings) -> commit/push branch -> test preview URL on phone + laptop -> merge to main. Then Phase 2: scoring engine.
+- **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
+
+### Cloud sync setup checklist
+- [x] Cloudflare agent setup: 16 Cloudflare skills installed globally (`~/.agents/skills`), MCP servers in `.vscode/mcp.json` (cloudflare, docs, bindings, builds, observability; OAuth on first use)
+- [x] `npx wrangler login` (account sheenzhaox@gmail.com, ID 1f19e6fef6c5c573de9b297ed4c18aa1; d1 write scope OK)
+- [x] D1 created (free plan, region OC): `sheen-tennis-tracker` (6e70b0d1-1e78-440f-b354-2d2316e2fcc4, prod) and `sheen-tennis-tracker-preview` (a8b2a5f4-96db-4bee-a04b-839ac21af1be). Isolation via official Workers Previews `previews` block in `wrangler.jsonc` (same `DB` binding name); preview migrations via `wrangler.preview-migrations.jsonc`
+- [x] `npm run db:migrate:remote` (both DBs migrated); `wrangler deploy --dry-run` OK
+- [x] Token set: `API_TOKEN` production secret + Previews base-config secret (verified by name). User ran `npx wrangler deploy` locally -> **production already runs the sync code** (prod API returns 401 without token). Merge branch to `main` soon, otherwise a push to `main` would redeploy the old assets-only version.
+- [ ] Cloudflare build settings: build `npm run build`, deploy `npx wrangler deploy`, non-prod deploy `npx wrangler versions upload`
+- [ ] Commit + push branch; open preview URL -> Settings -> paste token on each device
+- [ ] Merge to `main` when happy (production uses prod DB)
+- Note: laptop network intercepts TLS (`SELF_SIGNED_CERT_IN_CHAIN`). **Fix (verified):** `$env:NODE_OPTIONS='--use-system-ca'` before wrangler commands (Node trusts the Windows cert store). Persist with `[Environment]::SetEnvironmentVariable('NODE_OPTIONS','--use-system-ca','User')`.
 
 ## Feasibility Analysis (2026-10-01)
 
@@ -31,7 +42,7 @@
 
 ```mermaid
 flowchart LR
-  subgraph Phone[Phone browser - PWA hosted on Cloudflare Pages]
+  subgraph Phone[Phone browser - PWA served by Cloudflare Worker]
     UI[UI: match setup / point entry / scoreboard / history]
     ENG[Scoring engine - pure TS]
     DB[(IndexedDB via Dexie<br/>local source of truth)]
@@ -40,7 +51,7 @@ flowchart LR
     UI --> DB
     DB --> SYNC
   end
-  SYNC -- HTTPS /api/* --> FN[Pages Functions] --> SB[(Cloudflare D1)]
+  SYNC -- HTTPS POST /api/sync + Bearer token --> FN[Worker API] --> SB[(Cloudflare D1)]
   SB --> ANA[Analysis: SQL views / CSV export / Python notebooks]
 ```
 
@@ -105,6 +116,11 @@ src/
 | 2026-10-01 | Branch previews: non-production branch builds + preview URLs (branch alias, `/` -> `-`) | Previews share production bindings -> in Phase 4 use a separate preview D1 so previews can't write prod data |
 | 2026-10-01 | DECIDED: React + TS; singles only; single user; no live view (for now) | Keep engine extensible for doubles; multi-user later |
 | 2026-10-01 | Backend: **D1 recommended** over Supabase given current scope | Same platform/deploy; no inactivity pause (Supabase free pauses after ~7 days idle); SQL (SQLite) fine for analysis; auth via Cloudflare Access (free) on `/api/*`. Cost: write small API in Pages Functions. KV not needed. Supabase stays the fallback if multi-user/realtime needs grow |
+| 2026-10-01 | Cross-device sync brought forward (option 2) after data didn't appear across devices | IndexedDB is per device + per origin |
+| 2026-10-01 | **Auth changed: bearer sync token instead of Cloudflare Access** | Access login redirects/cookies are unreliable in installed iOS PWAs; token works offline-first and is simple for a single user. Revisit for multi-user |
+| 2026-10-01 | Two D1 DBs: prod `DB` at top level; preview DB bound as `DB` inside `previews` block (replaces earlier host-routing idea with `PROD_HOST`/`DB_PREVIEW`) | Official Workers Previews isolation; simpler Worker code |
+| 2026-10-01 | Stay on **Workers Free plan** | Since 2026-09-01 D1 free-tier overages make queries fail until midnight UTC (no charges). Usage here is tiny |
+| 2026-10-01 | Sync protocol: soft deletes (`deletedAt`), `dirty` flag, last-write-wins on `updatedAt`, server `synced_at` cursor (60 s overlap) | D1 tables store key columns + JSON `data` |
 
 ## Step Log
 
@@ -124,6 +140,14 @@ src/
    - Rules: 7 built-in presets in code (`src/model/rules.ts`, read-only, can be duplicated) + custom rule sets in DB; `describeRules`, `validateRules` (+ tests).
    - Matches: new-match form (players, rules, first server, surface, indoor, venue; quick-add player returns to form). Match stores a **snapshot of rules**. Match page is a placeholder for Phase 3 point entry.
    - `navigator.storage.persist()` requested on startup.
+9. Created branch `dev/build-match-tracker` (pushed).
+10. Cloud sync (Phase 4 brought forward), on branch:
+   - `wrangler.jsonc` (Worker `main`, assets `./dist` SPA, `/api/*` worker-first, D1 `DB`, var `ENVIRONMENT`; `previews` block binds `DB` to the preview database).
+   - `migrations/0001_init.sql`: `players`, `rule_sets`, `matches` (id, updated_at, deleted_at, synced_at, data JSON).
+   - `worker/index.ts`: `POST /api/sync` (push dirty + pull since cursor), `GET /api/ping`; bearer token check (SHA-256 + timingSafeEqual); input validation + size limits; prepared statements.
+   - Client: Dexie v2 (`dirty` index, `meta` table), `saveRecord`/`deleteRecord` (soft delete), `src/storage/sync.ts` (debounced, on online/visible, every 60 s), Settings page (`#/settings`) for token + status, sync status on home.
+   - SW `navigateFallbackDenylist` for `/api/`; Vite proxy `/api` -> 8787.
+   - Verified locally: 401 on bad token, sync, restore on wiped DB, delete propagation.
 
 ## Open Questions / TODO
 

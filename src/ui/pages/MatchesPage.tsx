@@ -6,7 +6,10 @@ import { usePlayerNames } from '../hooks';
 import { formatDate } from '../format';
 
 export default function MatchesPage() {
-  const matches = useLiveQuery(() => db.matches.orderBy('startedAt').reverse().toArray(), []);
+  const matches = useLiveQuery(
+    () => db.matches.orderBy('startedAt').reverse().filter((m) => !m.deletedAt).toArray(),
+    [],
+  );
   const names = usePlayerNames();
 
   if (matches === undefined) return null;
