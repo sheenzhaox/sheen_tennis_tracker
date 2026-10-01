@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** Cloud sync live on production and verified. Working on branch `dev/match-setup`: two-step match setup flow implemented and tested locally, pushed for preview.
-- **Next step:** User tests preview; merge `dev/match-setup` to `main`. Then Phase 2: scoring engine + point tracking on the match page.
+- **Status:** Cloud sync live and verified. Two-step match setup flow merged into `dev/build-match-tracker`, which Cloudflare builds as production (https://sheen-tennis-tracker.sheenzhaox.workers.dev).
+- **Next step:** User tests match setup on the live site. Then Phase 2: scoring engine + point tracking on the match page (on `dev/build-match-tracker`).
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### Cloud sync setup checklist
@@ -27,6 +27,7 @@
 - [x] Commit + push branch (de44ebd); sync verified by user across devices on production
 - [x] Merge `dev/build-match-tracker` into `main` (fast-forward) and push
 - [x] Cloudflare dashboard: production branch switched back to `main` (`main` = production + prod DB; other branches = previews + preview DB)
+- [x] DECIDED (2026-10-01): work only on `dev/build-match-tracker`; Cloudflare production branch = `dev/build-match-tracker` (deploys live site + prod DB). Non-production branch builds stay off; `main` is not deployed. `dev/match-setup` merged into it.
 - Note: laptop network intercepts TLS (`SELF_SIGNED_CERT_IN_CHAIN`). **Fix (verified):** `$env:NODE_OPTIONS='--use-system-ca'` before wrangler commands (Node trusts the Windows cert store). Persist with `[Environment]::SetEnvironmentVariable('NODE_OPTIONS','--use-system-ca','User')`.
 
 ## Feasibility Analysis (2026-10-01)
