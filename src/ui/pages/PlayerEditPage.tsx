@@ -5,7 +5,7 @@ import { db, deleteRecord, isLive, matchesForPlayer, newId, saveRecord } from '.
 import type { Backhand, Handedness, Player } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
-import { formatDate } from '../format';
+import { formatMatchDay } from '../format';
 
 interface Props {
   id: string;
@@ -140,7 +140,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
                       <a href={`#/match/${m.id}`}>
                         <strong>vs {names.get(opponentId) ?? 'Unknown'}</strong>
                         <span className="muted">
-                          {formatDate(m.startedAt)} · {m.status.replace('_', ' ')}
+                          {formatMatchDay(m)} · {m.status.replace('_', ' ')}
                         </span>
                       </a>
                     </li>

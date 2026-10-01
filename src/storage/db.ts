@@ -54,13 +54,14 @@ export async function deleteRecord(table: SyncTable, id: string): Promise<void> 
 
 export const isLive = <T extends { deletedAt?: number }>(r: T | undefined): r is T => !!r && !r.deletedAt;
 
-export function matchesForPlayer(playerId: string): Promise<Match[]> {
-  return db.matches
+export async function matchesForPlayer(playerId: string): Promise<Match[]> {
+  const matches = await db.matches
     .where('playerAId')
     .equals(playerId)
     .or('playerBId')
     .equals(playerId)
     .filter((m) => !m.deletedAt)
-    .reverse()
-    .sortBy('startedAt');
+    .toArray();
+  const key = (m: Match) => m.startedAt ?? m.createdAt ?? m.updatedAt;
+  return matches.sort((x, y) => key(y) - key(x));
 }

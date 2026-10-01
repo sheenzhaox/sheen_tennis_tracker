@@ -13,7 +13,7 @@ const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value)
 
 export default function App() {
   const { segments, query } = useRoute();
-  const [section, rawId] = segments;
+  const [section, rawId, action] = segments;
   const id = rawId ? decodeURIComponent(rawId) : undefined;
 
   switch (section) {
@@ -23,6 +23,7 @@ export default function App() {
       return id ? <RuleEditPage id={id} copyFrom={query.get('from')} /> : <RulesPage />;
     case 'match':
       if (id === 'new') return <NewMatchPage />;
+      if (id && action === 'edit') return <NewMatchPage id={id} />;
       return id ? <MatchPage id={id} /> : <MatchesPage />;
     case 'settings':
       return <SettingsPage />;

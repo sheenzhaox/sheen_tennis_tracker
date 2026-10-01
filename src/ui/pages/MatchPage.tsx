@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
+import StartMatchPage from './StartMatchPage';
 import { db, deleteRecord, isLive } from '../../storage/db';
 import { describeRules } from '../../model/rules';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
-import { formatDate } from '../format';
+import { formatMatchDay, formatTime, surfaceLabel } from '../format';
 
 export default function MatchPage({ id }: { id: string }) {
   const match = useLiveQuery(async () => {
@@ -27,6 +28,8 @@ export default function MatchPage({ id }: { id: string }) {
 
   const a = names.get(match.playerAId) ?? 'Player A';
   const b = names.get(match.playerBId) ?? 'Player B';
+  if (match.status === 'scheduled') return <StartMatchPage match={match} nameA={a} nameB={b} />;
+  const info = [match.event, match.round, match.venue].filter(Boolean).join(' · ');
 
   async function remove() {
     if (!confirm('Delete this match and all its recorded data?')) return;
@@ -44,8 +47,15 @@ export default function MatchPage({ id }: { id: string }) {
           <span className="muted">{describeRules(match.rules)}</span>
         </p>
         <p className="muted">
-          Started {formatDate(match.startedAt)} · first server {match.firstServer === 'A' ? a : b}
-          {match.venue ? ` · ${match.venue}` : ''}
+          {formatMatchDay(match)} · {surfaceLabel(match.surface)}
+          {match.startedAt ? ` · started ${formatTime(match.startedAt)}` : ''}
+          {match.firstServer ? ` · first server ${match.firstServer === 'A' ? a : b}` : ''}
+          {info && (
+            <>
+              <br />
+              {info}
+            </>
+          )}
         </p>
         <div className="placeholder">Point-by-point recording comes next (Phase 2-3).</div>
         <button className="btn btn-danger" type="button" onClick={remove}>

@@ -44,25 +44,38 @@ export interface RuleSet extends Syncable {
   updatedAt?: number;
 }
 
-export type MatchStatus = 'in_progress' | 'completed' | 'abandoned';
-export type Surface = 'hard' | 'clay' | 'grass' | 'carpet' | 'other';
+export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'abandoned';
+export type Surface = 'hard' | 'clay' | 'synthetic_grass' | 'grass';
 export type Side = 'A' | 'B';
+
+export const SURFACES: { value: Surface; label: string }[] = [
+  { value: 'hard', label: 'Hard' },
+  { value: 'clay', label: 'Clay' },
+  { value: 'synthetic_grass', label: 'Synthetic grass' },
+  { value: 'grass', label: 'Grass' },
+];
 
 export interface Match extends Syncable {
   id: string;
+  /** Match day as YYYY-MM-DD (local). */
+  date?: string;
   playerAId: string;
   playerBId: string;
   ruleSetId: string;
   ruleSetName: string;
   /** Snapshot so later edits to the rule set don't change this match. */
   rules: Rules;
-  firstServer: Side;
+  /** Chosen on the start screen; unset while scheduled. */
+  firstServer?: Side;
   surface?: Surface;
-  indoor?: boolean;
+  event?: string;
+  round?: string;
   venue?: string;
   notes?: string;
   status: MatchStatus;
-  startedAt: number;
+  /** Timestamp when "Start match" was pressed. */
+  startedAt?: number;
   finishedAt?: number;
+  createdAt?: number;
   updatedAt: number;
 }

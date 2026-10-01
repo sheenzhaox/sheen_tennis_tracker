@@ -270,3 +270,50 @@ legend {
   text-align: center;
   color: var(--muted);
 }
+
+.form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.inline-add {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+}
+
+.inline-add .btn {
+  width: auto;
+}
+
+.summary {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.summary p {
+  margin: 0 0 0.75rem;
+}
+
+.summary-players {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.serve-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.start-btn {
+  margin: 1.5rem 0 1rem;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

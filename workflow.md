@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** Cloud sync live on production and **verified by user across devices** (2026-10-01). `dev/build-match-tracker` merged into `main` (fast-forward) and pushed.
-- **Next step:** User switches Cloudflare production branch back to `main`. Then Phase 2: scoring engine + tests (on a feature branch -> preview -> merge to `main`).
+- **Status:** Cloud sync live on production and verified. Working on branch `dev/match-setup`: two-step match setup flow implemented and tested locally, pushed for preview.
+- **Next step:** User tests preview; merge `dev/match-setup` to `main`. Then Phase 2: scoring engine + point tracking on the match page.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### Cloud sync setup checklist
@@ -26,7 +26,7 @@
 - [x] Cloudflare build settings: build `npm run build`, deploy `npx wrangler deploy`
 - [x] Commit + push branch (de44ebd); sync verified by user across devices on production
 - [x] Merge `dev/build-match-tracker` into `main` (fast-forward) and push
-- [ ] Cloudflare dashboard: production branch is currently `dev/build-match-tracker` -> switch back to `main` (Worker -> Settings -> Build -> Branch control), so `main` = production and other branches = previews (preview DB)
+- [x] Cloudflare dashboard: production branch switched back to `main` (`main` = production + prod DB; other branches = previews + preview DB)
 - Note: laptop network intercepts TLS (`SELF_SIGNED_CERT_IN_CHAIN`). **Fix (verified):** `$env:NODE_OPTIONS='--use-system-ca'` before wrangler commands (Node trusts the Windows cert store). Persist with `[Environment]::SetEnvironmentVariable('NODE_OPTIONS','--use-system-ca','User')`.
 
 ## Feasibility Analysis (2026-10-01)
@@ -149,6 +149,10 @@ src/
    - Client: Dexie v2 (`dirty` index, `meta` table), `saveRecord`/`deleteRecord` (soft delete), `src/storage/sync.ts` (debounced, on online/visible, every 60 s), Settings page (`#/settings`) for token + status, sync status on home.
    - SW `navigateFallbackDenylist` for `/api/`; Vite proxy `/api` -> 8787.
    - Verified locally: 401 on bad token, sync, restore on wiped DB, delete propagation.
+11. Branch `dev/match-setup` - two-step match flow:
+   - Step 1 setup (`#/match/new`, edit via `#/match/:id/edit`): date (default today), players A/B (select, or inline "+ New player..." creates one), surface (Hard / Clay / Synthetic grass / Grass), match info (event, round, venue/court, notes), match format (rule set + summary). "Next" saves match with status `scheduled`.
+   - Step 2 start (`#/match/:id` while scheduled, `StartMatchPage`): summary, "Who serves first?", Start match -> sets `firstServer`, `status: in_progress`, `startedAt` timestamp. Then match page (point tracking placeholder).
+   - Model: `MatchStatus` + `scheduled`; `Surface` = hard | clay | synthetic_grass | grass; Match adds `date`, `event`, `round`, `createdAt`; `firstServer`/`startedAt` optional; `indoor` removed. Match lists sorted in memory (startedAt ?? createdAt); Matches page has "Not started" section.
 
 ## Open Questions / TODO
 
