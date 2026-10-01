@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** Phase 1 deployed (https://sheen-tennis-tracker.sheenzhaox.workers.dev). Phase 1.5 (main page + Players + Rules + Start/Resume match, local Dexie DB) implemented locally, build + tests pass; not yet committed.
-- **Next step:** User reviews UI; commit/push. Then Phase 2: scoring engine (uses `Rules` from `src/model/types.ts`) + tests.
+- **Status:** Phase 1.5 committed and pushed to `main` (commit 10bd162). Working on branch `dev/build-match-tracker` for Phase 2.
+- **Next step:** Phase 2: scoring engine (uses `Rules` from `src/model/types.ts`) + tests.
 - **Commands:** `npm run dev` (local), `npm run build`, `npm test`, `npm run icons` (regenerate icons from `public/logo.svg`).
 
 ## Feasibility Analysis (2026-10-01)
@@ -102,6 +102,7 @@ src/
 | 2026-10-01 | **Recommended:** Supabase (Postgres) for data; GitHub Pages if repo public, else Cloudflare Pages | SQL suits analysis better than Firestore; Vercel Hobby is non-commercial only |
 | 2026-10-01 | **DECIDED: Cloudflare Pages for hosting** (replaces GitHub Pages) | Free for private repos, preview URL per branch, no deploy workflow needed |
 | 2026-10-01 | Actually deployed as **Cloudflare Worker with static assets** (workers.dev), not Pages | Cloudflare's recommended path; fine. API in Phase 4 = Worker script instead of Pages Functions; D1/Access unchanged. No wrangler config in repo yet (dashboard defaults) |
+| 2026-10-01 | Branch previews: non-production branch builds + preview URLs (branch alias, `/` -> `-`) | Previews share production bindings -> in Phase 4 use a separate preview D1 so previews can't write prod data |
 | 2026-10-01 | DECIDED: React + TS; singles only; single user; no live view (for now) | Keep engine extensible for doubles; multi-user later |
 | 2026-10-01 | Backend: **D1 recommended** over Supabase given current scope | Same platform/deploy; no inactivity pause (Supabase free pauses after ~7 days idle); SQL (SQLite) fine for analysis; auth via Cloudflare Access (free) on `/api/*`. Cost: write small API in Pages Functions. KV not needed. Supabase stays the fallback if multi-user/realtime needs grow |
 
