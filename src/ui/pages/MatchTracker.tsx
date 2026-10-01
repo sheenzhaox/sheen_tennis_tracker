@@ -49,7 +49,7 @@ function toServe(s: Selection & { result: ServeResult }): Serve {
   return serve;
 }
 
-/** Point-by-point entry: serve outcome, optional return detail, then optional serve location and type. */
+/** Point-by-point entry: serve outcome, optional serve location and type, then optional return detail. */
 export default function MatchTracker({ match, nameA, nameB }: Props) {
   const points = useLiveQuery(() => pointsForMatch(match.id), [match.id]);
   // Serves already hit in the current point (a 1st-serve fault, or the serve that went in).
@@ -70,8 +70,6 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const hasSelection = JSON.stringify(sel) !== JSON.stringify(EMPTY);
 
   const resetServe = () => setSel(EMPTY);
-  const pick = <K extends keyof Selection>(key: K, value: Selection[K]) =>
-    setSel((s) => ({ ...s, [key]: s[key] === value && key !== 'result' ? 'none' : value }));
 
   async function recordPoint(serves: Serve[], end: PointEnd, winner: Side) {
     setBusy(true);
@@ -123,11 +121,14 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  function pickType(t: Exclude<ServeType, 'none'>) {
-    const next = { ...sel, type: sel.type === t ? ('none' as const) : t };
+  // Picking a value in the last visible row completes the serve (if an outcome is chosen).
+  const lastRow: keyof Selection =
+    sel.result === 'return_error' ? 'error' : sel.result === 'return_winner' ? 'direction' : 'type';
+
+  function pickRow<K extends Exclude<keyof Selection, 'result'>>(key: K, value: Selection[K]) {
+    const next = { ...sel, [key]: sel[key] === value ? 'none' : value };
     setSel(next);
-    // Type is the last row, so with an outcome chosen it completes the serve.
-    if (next.result && next.type !== 'none') void commit(next);
+    if (key === lastRow && next.result && next[key] !== 'none') void commit(next);
   }
 
   async function undo() {
@@ -198,25 +199,25 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
                     className={`btn ${sel.result === r.value ? 'btn-primary' : ''} ${r.value === 'fault' ? 'fault' : ''}`}
                     aria-pressed={sel.result === r.value}
                     disabled={busy}
-                    onClick={() => pick('result', r.value)}
+                    onClick={() => setSel({ ...sel, result: r.value })}
                   >
                     {r.value === 'fault' && serveNo === 2 ? 'Fault (double)' : r.label}
                   </button>
                 ))}
               </div>
 
+              <OptionRow title="Serve location" options={SERVE_LOCATIONS} value={sel.location} disabled={busy} onPick={(v) => pickRow('location', v)} />
+              <OptionRow title="Serve type" options={SERVE_TYPES} value={sel.type} disabled={busy} onPick={(v) => pickRow('type', v)} />
+
               {isReturn(sel.result) && (
                 <>
-                  <OptionRow title="Return" options={RETURN_STROKES} value={sel.stroke} cols="two" disabled={busy} onPick={(v) => pick('stroke', v)} />
-                  <OptionRow title="Return direction" options={RETURN_DIRECTIONS} value={sel.direction} disabled={busy} onPick={(v) => pick('direction', v)} />
+                  <OptionRow title="Return" options={RETURN_STROKES} value={sel.stroke} cols="two" disabled={busy} onPick={(v) => pickRow('stroke', v)} />
+                  <OptionRow title="Return direction" options={RETURN_DIRECTIONS} value={sel.direction} disabled={busy} onPick={(v) => pickRow('direction', v)} />
                   {sel.result === 'return_error' && (
-                    <OptionRow title="Return error" options={RETURN_ERRORS} value={sel.error} disabled={busy} onPick={(v) => pick('error', v)} />
+                    <OptionRow title="Return error" options={RETURN_ERRORS} value={sel.error} disabled={busy} onPick={(v) => pickRow('error', v)} />
                   )}
                 </>
               )}
-
-              <OptionRow title="Serve location" options={SERVE_LOCATIONS} value={sel.location} disabled={busy} onPick={(v) => pick('location', v)} />
-              <OptionRow title="Serve type" options={SERVE_TYPES} value={sel.type} disabled={busy} onPick={pickType} />
 
               <button
                 type="button"
