@@ -13,8 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status:** On branch `dev/build-match-tracker`: cloud sync (Phase 4, brought forward) implemented and verified locally (wrangler dev + local D1: push, pull to wiped device, delete propagation). NOT yet committed. Cloudflare-side setup pending (see "Cloud sync setup checklist").
-- **Next step:** User completes checklist (wrangler login, create 2 D1 DBs, put IDs in `wrangler.jsonc`, remote migrations, `API_TOKEN` secret, check build settings) -> commit/push branch -> test preview URL on phone + laptop -> merge to main. Then Phase 2: scoring engine.
+- **Status:** Cloud sync live on production and **verified by user across devices** (2026-10-01). `dev/build-match-tracker` merged into `main` (fast-forward) and pushed.
+- **Next step:** User switches Cloudflare production branch back to `main`. Then Phase 2: scoring engine + tests (on a feature branch -> preview -> merge to `main`).
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### Cloud sync setup checklist
@@ -23,9 +23,10 @@
 - [x] D1 created (free plan, region OC): `sheen-tennis-tracker` (6e70b0d1-1e78-440f-b354-2d2316e2fcc4, prod) and `sheen-tennis-tracker-preview` (a8b2a5f4-96db-4bee-a04b-839ac21af1be). Isolation via official Workers Previews `previews` block in `wrangler.jsonc` (same `DB` binding name); preview migrations via `wrangler.preview-migrations.jsonc`
 - [x] `npm run db:migrate:remote` (both DBs migrated); `wrangler deploy --dry-run` OK
 - [x] Token set: `API_TOKEN` production secret + Previews base-config secret (verified by name). User ran `npx wrangler deploy` locally -> **production already runs the sync code** (prod API returns 401 without token). Merge branch to `main` soon, otherwise a push to `main` would redeploy the old assets-only version.
-- [ ] Cloudflare build settings: build `npm run build`, deploy `npx wrangler deploy`, non-prod deploy `npx wrangler versions upload`
-- [ ] Commit + push branch; open preview URL -> Settings -> paste token on each device
-- [ ] Merge to `main` when happy (production uses prod DB)
+- [x] Cloudflare build settings: build `npm run build`, deploy `npx wrangler deploy`
+- [x] Commit + push branch (de44ebd); sync verified by user across devices on production
+- [x] Merge `dev/build-match-tracker` into `main` (fast-forward) and push
+- [ ] Cloudflare dashboard: production branch is currently `dev/build-match-tracker` -> switch back to `main` (Worker -> Settings -> Build -> Branch control), so `main` = production and other branches = previews (preview DB)
 - Note: laptop network intercepts TLS (`SELF_SIGNED_CERT_IN_CHAIN`). **Fix (verified):** `$env:NODE_OPTIONS='--use-system-ca'` before wrangler commands (Node trusts the Windows cert store). Persist with `[Environment]::SetEnvironmentVariable('NODE_OPTIONS','--use-system-ca','User')`.
 
 ## Feasibility Analysis (2026-10-01)
