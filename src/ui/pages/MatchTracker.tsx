@@ -4,12 +4,18 @@ import ScoreTable from '../components/ScoreTable';
 import { computeScore, other } from '../../engine/score';
 import { deleteRecord, newId, pointsForMatch, saveRecord } from '../../storage/db';
 import {
+  RETURN_DIRECTIONS,
+  RETURN_ERRORS,
+  RETURN_STROKES,
   SERVE_LOCATIONS,
   SERVE_RESULTS,
   SERVE_TYPES,
   type Match,
   type Point,
   type PointEnd,
+  type ReturnDirection,
+  type ReturnError,
+  type ReturnStroke,
   type Serve,
   type ServeLocation,
   type ServeResult,
@@ -23,15 +29,33 @@ interface Props {
   nameB: string;
 }
 
-/** Point-by-point entry: serve outcome, then optional serve location and type. */
+interface Selection {
+  result: ServeResult | null;
+  stroke: ReturnStroke;
+  direction: ReturnDirection;
+  error: ReturnError;
+  location: ServeLocation;
+  type: ServeType;
+}
+
+const EMPTY: Selection = { result: null, stroke: 'none', direction: 'none', error: 'none', location: 'none', type: 'none' };
+
+const isReturn = (r: ServeResult | null) => r === 'return_winner' || r === 'return_error';
+
+function toServe(s: Selection & { result: ServeResult }): Serve {
+  const serve: Serve = { result: s.result, location: s.location, type: s.type };
+  if (s.result === 'return_winner') serve.return = { stroke: s.stroke, direction: s.direction };
+  if (s.result === 'return_error') serve.return = { stroke: s.stroke, direction: s.direction, error: s.error };
+  return serve;
+}
+
+/** Point-by-point entry: serve outcome, optional return detail, then optional serve location and type. */
 export default function MatchTracker({ match, nameA, nameB }: Props) {
   const points = useLiveQuery(() => pointsForMatch(match.id), [match.id]);
   // Serves already hit in the current point (a 1st-serve fault, or the serve that went in).
   const [draft, setDraft] = useState<Serve[]>([]);
   const [rally, setRally] = useState(false);
-  const [result, setResult] = useState<ServeResult | null>(null);
-  const [location, setLocation] = useState<ServeLocation>('none');
-  const [type, setType] = useState<ServeType>('none');
+  const [sel, setSel] = useState<Selection>(EMPTY);
   const [busy, setBusy] = useState(false);
 
   if (!points) return null;
@@ -43,12 +67,11 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const receiver = other(server);
   const serveNo = draft.length + 1;
   const name = (s: Side) => (s === 'A' ? nameA : nameB);
+  const hasSelection = JSON.stringify(sel) !== JSON.stringify(EMPTY);
 
-  function resetServe() {
-    setResult(null);
-    setLocation('none');
-    setType('none');
-  }
+  const resetServe = () => setSel(EMPTY);
+  const pick = <K extends keyof Selection>(key: K, value: Selection[K]) =>
+    setSel((s) => ({ ...s, [key]: s[key] === value && key !== 'result' ? 'none' : value }));
 
   async function recordPoint(serves: Serve[], end: PointEnd, winner: Side) {
     setBusy(true);
@@ -76,8 +99,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  async function commit(r: ServeResult, loc: ServeLocation, t: ServeType) {
-    const serves = [...draft, { result: r, location: loc, type: t }];
+  async function commit(s: Selection) {
+    if (!s.result) return;
+    const r = s.result;
+    const serves = [...draft, toServe({ ...s, result: r })];
     switch (r) {
       case 'ace':
         return recordPoint(serves, 'ace', server);
@@ -98,10 +123,11 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  function pickType(t: ServeType) {
-    setType(t);
+  function pickType(t: Exclude<ServeType, 'none'>) {
+    const next = { ...sel, type: sel.type === t ? ('none' as const) : t };
+    setSel(next);
     // Type is the last row, so with an outcome chosen it completes the serve.
-    if (result) void commit(result, location, t);
+    if (next.result && next.type !== 'none') void commit(next);
   }
 
   async function undo() {
@@ -111,7 +137,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       resetServe();
       return;
     }
-    if (result || location !== 'none' || type !== 'none') return resetServe();
+    if (hasSelection) return resetServe();
     if (draft.length) {
       setDraft([]);
       return;
@@ -129,7 +155,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  const canUndo = rally || draft.length > 0 || result !== null || location !== 'none' || type !== 'none' || points.length > 0;
+  const canUndo = rally || draft.length > 0 || hasSelection || points.length > 0;
 
   return (
     <div className="tracker">
@@ -169,53 +195,34 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
                   <button
                     key={r.value}
                     type="button"
-                    className={`btn ${result === r.value ? 'btn-primary' : ''} ${r.value === 'fault' ? 'fault' : ''}`}
-                    aria-pressed={result === r.value}
+                    className={`btn ${sel.result === r.value ? 'btn-primary' : ''} ${r.value === 'fault' ? 'fault' : ''}`}
+                    aria-pressed={sel.result === r.value}
                     disabled={busy}
-                    onClick={() => setResult(r.value)}
+                    onClick={() => pick('result', r.value)}
                   >
                     {r.value === 'fault' && serveNo === 2 ? 'Fault (double)' : r.label}
                   </button>
                 ))}
               </div>
 
-              <h2>Location</h2>
-              <div className="choice-grid three">
-                {SERVE_LOCATIONS.map((l) => (
-                  <button
-                    key={l.value}
-                    type="button"
-                    className={`btn ${location === l.value ? 'btn-primary' : ''}`}
-                    aria-pressed={location === l.value}
-                    disabled={busy}
-                    onClick={() => setLocation(location === l.value ? 'none' : l.value)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
+              {isReturn(sel.result) && (
+                <>
+                  <OptionRow title="Return" options={RETURN_STROKES} value={sel.stroke} cols="two" disabled={busy} onPick={(v) => pick('stroke', v)} />
+                  <OptionRow title="Return direction" options={RETURN_DIRECTIONS} value={sel.direction} disabled={busy} onPick={(v) => pick('direction', v)} />
+                  {sel.result === 'return_error' && (
+                    <OptionRow title="Return error" options={RETURN_ERRORS} value={sel.error} disabled={busy} onPick={(v) => pick('error', v)} />
+                  )}
+                </>
+              )}
 
-              <h2>Type</h2>
-              <div className="choice-grid three">
-                {SERVE_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    className={`btn ${type === t.value ? 'btn-primary' : ''}`}
-                    aria-pressed={type === t.value}
-                    disabled={busy}
-                    onClick={() => pickType(t.value)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <OptionRow title="Serve location" options={SERVE_LOCATIONS} value={sel.location} disabled={busy} onPick={(v) => pick('location', v)} />
+              <OptionRow title="Serve type" options={SERVE_TYPES} value={sel.type} disabled={busy} onPick={pickType} />
 
               <button
                 type="button"
                 className="btn btn-primary btn-big next-btn"
-                disabled={!result || busy}
-                onClick={() => result && void commit(result, location, type)}
+                disabled={!sel.result || busy}
+                onClick={() => void commit(sel)}
               >
                 Next
               </button>
@@ -231,5 +238,36 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
       <p className="muted point-count">Points played: {points.length}</p>
     </div>
+  );
+}
+
+interface RowProps<T extends string> {
+  title: string;
+  options: { value: T; label: string }[];
+  value: string;
+  cols?: 'two' | 'three';
+  disabled: boolean;
+  onPick: (value: T) => void;
+}
+
+function OptionRow<T extends string>({ title, options, value, cols = 'three', disabled, onPick }: RowProps<T>) {
+  return (
+    <>
+      <h2>{title}</h2>
+      <div className={`choice-grid ${cols}`}>
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            className={`btn ${value === o.value ? 'btn-primary' : ''}`}
+            aria-pressed={value === o.value}
+            disabled={disabled}
+            onClick={() => onPick(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

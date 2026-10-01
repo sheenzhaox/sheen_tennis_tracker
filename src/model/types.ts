@@ -83,11 +83,23 @@ export interface Match extends Syncable {
 export type ServeResult = 'ace' | 'fault' | 'in' | 'return_winner' | 'return_error';
 export type ServeLocation = 'wide' | 'body' | 't' | 'none';
 export type ServeType = 'flat' | 'slice' | 'kick' | 'none';
+export type ReturnStroke = 'forehand' | 'backhand' | 'none';
+export type ReturnDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'none';
+export type ReturnError = 'net' | 'long' | 'wide' | 'none';
+
+export interface ReturnDetail {
+  stroke: ReturnStroke;
+  direction: ReturnDirection;
+  /** Only for an unforced return error. */
+  error?: ReturnError;
+}
 
 export interface Serve {
   result: ServeResult;
   location: ServeLocation;
   type: ServeType;
+  /** Set when the point ended on the return (Return Ace / Unforced Error Return). */
+  return?: ReturnDetail;
 }
 
 export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error' | 'rally';
@@ -109,9 +121,26 @@ export interface Point extends Syncable {
 export const SERVE_RESULTS: { value: ServeResult; label: string }[] = [
   { value: 'ace', label: 'Ace (Unreturnable)' },
   { value: 'fault', label: 'Fault' },
-  { value: 'in', label: 'Serve in' },
   { value: 'return_winner', label: 'Return Ace' },
   { value: 'return_error', label: 'Unforced Error Return' },
+  { value: 'in', label: 'Serve in' },
+];
+
+export const RETURN_STROKES: { value: Exclude<ReturnStroke, 'none'>; label: string }[] = [
+  { value: 'forehand', label: 'Forehand return' },
+  { value: 'backhand', label: 'Backhand return' },
+];
+
+export const RETURN_DIRECTIONS: { value: Exclude<ReturnDirection, 'none'>; label: string }[] = [
+  { value: 'crosscourt', label: 'Crosscourt' },
+  { value: 'down_the_line', label: 'Down the line' },
+  { value: 'inside_out', label: 'Inside out' },
+];
+
+export const RETURN_ERRORS: { value: Exclude<ReturnError, 'none'>; label: string }[] = [
+  { value: 'net', label: 'Net' },
+  { value: 'long', label: 'Long' },
+  { value: 'wide', label: 'Wide' },
 ];
 
 export const SERVE_LOCATIONS: { value: Exclude<ServeLocation, 'none'>; label: string }[] = [

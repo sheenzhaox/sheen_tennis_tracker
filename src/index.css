@@ -356,6 +356,10 @@ legend {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.choice-grid.outcomes .btn:last-child {
+  grid-column: 1 / -1;
+}
+
 .choice-grid .btn {
   min-height: 3.2rem;
   padding: 0.6rem 0.4rem;

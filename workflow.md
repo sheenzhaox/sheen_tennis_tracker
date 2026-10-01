@@ -160,6 +160,7 @@ src/
    - Serve page (`MatchTracker.tsx`, shown on match page when in progress/completed): row 1 outcome (Ace (Unreturnable) / Fault / Serve in / Return Ace / Unforced Error Return), row 2 location (Wide/Body/T), row 3 type (Flat/Slice/Kick). Location/type optional -> saved as `none`. Tapping a type completes the serve; otherwise "Next". 1st-serve fault -> 2nd serve; 2nd fault -> double fault (receiver wins). Ace / UE return -> server wins; Return Ace -> receiver wins. Serve in -> temporary "who won the point?" (rally page TBD). Undo steps back within a point, then deletes last point (reopens a completed match). Match auto-completes on match point.
    - Score table (`ScoreTable.tsx`) at bottom: completed sets (tiebreak loser points as superscript, match tiebreak as [10]), current set games, current points; serve dot.
    - Draft serves (e.g. after a 1st-serve fault) are kept in memory only; a reload mid-point restarts that point.
+13. Serve page update: outcome order Ace / Fault / Return Ace / Unforced Error Return / Serve in (last, full width). Return Ace or UE Return reveal rows: Return (Forehand/Backhand return), Return direction (Crosscourt/Down the line/Inside out); UE Return adds Return error (Net/Long/Wide). All optional (`none`). Stored on the serve as `return: {stroke, direction, error?}`. Then Serve location / Serve type rows as before.
 
 ## Open Questions / TODO
 
