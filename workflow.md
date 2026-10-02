@@ -175,7 +175,7 @@ src/
 17. Cleanup: serve outcome "Unforced Error Return" renamed "Return error" (UI + log; stored value still `return_error`). Shot type adds "Dropshot" (`dropshot`). Rally point ending split into two rows: "Point ended by" (server name / returner name) and "Ending" (Winner & forced error / Unforced error); combined into the same stored `RallyEnding` values.
 18. Sync indicator on the match page (2026-10-02): badge in the docked score bar (left of "Points played"), links to Settings. States: ✓ Synced (green) / N pending, Offline · N pending, Syncing... (amber) / Sync off, Sync token rejected, Sync error (red). Auto-sync itself was already per change (1.5 s debounce, on reconnect, on app focus, every 60 s).
 19. Serve page: when Fault is selected, a "Fault type" row (Net/Long/Wide) appears after Serve type; optional, stored as `serve.fault`; it's the last row for faults (picking it completes the serve). Shown in the point log, e.g. "1st: Fault (Net, Wide)".
-20. Serve outcome colours: Ace = solid blue (#1565c0) with white text, Fault = solid red with white text; the selected one gets a dark ring (since they're always filled).
+20. Serve outcome colours: Ace = blue outline + blue text on white; selected -> solid blue with white text. Fault = red outline + red text on white; selected -> solid red with white text.
 
 ## Open Questions / TODO
 
