@@ -14,7 +14,7 @@
 ## Current Checkpoint
 
 - **Status (2026-10-02, session paused):** All work committed, pushed and deployed (Cloudflare build of `7a611ea` succeeded) on `dev/build-match-tracker` (production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page, scoring engine, point-by-point log, pinned score table with sync badge and "+" missed-point buttons, cloud sync (D1). `main` is behind and not deployed.
-- **Next step (ideas, not started):** stats/analysis views per match and per player; break/set/match point indicators; persist the in-progress point draft across reloads; export (CSV/JSON); optionally bring `main` up to date.
+- **Next step (ideas, not started):** player-level stats across matches; stats export (CSV/JSON); break/set/match point indicators on the tracker; persist the in-progress point draft across reloads; optionally bring `main` up to date.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### How to resume (new session)
@@ -177,6 +177,13 @@ src/
 19. Serve page: when Fault is selected, a "Fault type" row (Net/Long/Wide) appears after Serve type; optional, stored as `serve.fault`; it's the last row for faults (picking it completes the serve). Shown in the point log, e.g. "1st: Fault (Net, Wide)".
 20. Serve outcome colours: Ace = blue outline + blue text on white; selected -> solid blue with white text. Fault = red outline + red text on white; selected -> solid red with white text.
 21. Manual score adjustment: a round "+" button after each player's name in the score table adds one missed point for that player (replaced the earlier "Edit score" panel with +Point/+Game). Missed points are saved as normal points with `end: 'unrecorded'`, `serves: []`, no rally (all features None), correct server; match auto-completes if it reaches match point. Undo removes them one at a time. Point log labels them "Not recorded (manual score)".
+22. Match stats page (`#/match/:id/stats`, "Stats" link in the match page header; `src/stats/matchStats.ts` pure functions + 5 tests, UI `StatsPage.tsx`):
+   - Definitions: **Winners** = Ace (server) + Return Ace (receiver) + rally "winner & forced error" (player who ended it). **Unforced errors** = Double fault (server) + Return error (receiver) + rally unforced error. Unrecorded (manual) points count only in points won.
+   - Summary per player: points won, winners (aces / return aces / rally winners), UE (DF / return errors / rally errors), 1st serve in %, 1st & 2nd serve points won %.
+   - Serve location (Wide/Body/T/Not set) for a chosen server, 1st & 2nd serve: in / hit and won / in. Filters: side (All / Deuce / Ad) and situation (All / First point of a game / Game point / Break point; tiebreak points have no situation; no-ad 40-40 counts as both game and break point).
+   - Rally forehand/backhand winners & UE per player, filter All / 1-6 shots / 7+ shots (rallies without a count only in All).
+   - Shot type counts (last shot of rally) per player, winners vs UE.
+   - UE breakdown per player: stroke (Forehand / Backhand / Serve (DF) / not set), court position (Baseline / Approach / Net / not set), error type (Net / Long / Wide / not set; DF uses the 2nd serve's fault type, return errors use the return error).
 
 ## Open Questions / TODO
 

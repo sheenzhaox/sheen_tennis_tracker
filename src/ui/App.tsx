@@ -8,6 +8,7 @@ import MatchesPage from './pages/MatchesPage';
 import NewMatchPage from './pages/NewMatchPage';
 import MatchPage from './pages/MatchPage';
 import SettingsPage from './pages/SettingsPage';
+import StatsPage from './pages/StatsPage';
 
 const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value) ? value : null);
 
@@ -24,6 +25,7 @@ export default function App() {
     case 'match':
       if (id === 'new') return <NewMatchPage />;
       if (id && action === 'edit') return <NewMatchPage id={id} />;
+      if (id && action === 'stats') return <StatsPage id={id} />;
       return id ? <MatchPage id={id} /> : <MatchesPage />;
     case 'settings':
       return <SettingsPage />;

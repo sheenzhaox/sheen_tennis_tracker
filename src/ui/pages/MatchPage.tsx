@@ -43,7 +43,7 @@ export default function MatchPage({ id }: { id: string }) {
 
   return (
     <>
-      <Header title={`${a} vs ${b}`} back="/match" />
+      <Header title={`${a} vs ${b}`} back="/match" action={<a href={`#/match/${id}/stats`}>Stats</a>} />
       <main className="page">
         <MatchTracker match={match} nameA={a} nameB={b} />
         <details className="match-details" onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>
