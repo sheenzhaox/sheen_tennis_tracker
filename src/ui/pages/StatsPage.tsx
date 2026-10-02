@@ -156,7 +156,8 @@ export default function StatsPage({ id }: { id: string }) {
           onChange={setLength}
           options={[
             { value: 'all', label: 'All rallies' },
-            { value: 'short', label: '1-6 shots' },
+            { value: 'odd', label: '1-3-5' },
+            { value: 'even', label: '2-4-6' },
             { value: 'long', label: '7+ shots' },
           ]}
         />
@@ -170,7 +171,10 @@ export default function StatsPage({ id }: { id: string }) {
             strokes.B[k].errors,
           ])}
         />
-        <p className="muted small">W = winner & forced error, UE = unforced error (last shot of the rally).</p>
+        <p className="muted small">
+          W = winner & forced error, UE = unforced error (last shot of the rally). 1-3-5 = rallies of 1, 3 or 5 shots (ended on the
+          server's shot); 2-4-6 = 2, 4 or 6 shots (ended on the returner's shot); 7+ = either.
+        </p>
 
         <h2>Shot type</h2>
         <Table

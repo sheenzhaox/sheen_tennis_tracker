@@ -90,7 +90,9 @@ describe('match stats', () => {
 
   it('rally strokes by length', () => {
     expect(rallyStrokeStats(ctxs, 'all').A.forehand.winners).toBe(1);
-    expect(rallyStrokeStats(ctxs, 'short').B.backhand.errors).toBe(0);
+    expect(rallyStrokeStats(ctxs, 'odd').A.forehand.winners).toBe(1);
+    expect(rallyStrokeStats(ctxs, 'even').A.forehand.winners).toBe(0);
+    expect(rallyStrokeStats(ctxs, 'odd').B.backhand.errors).toBe(0);
     expect(rallyStrokeStats(ctxs, 'long').B.backhand.errors).toBe(1);
   });
 

@@ -4,7 +4,8 @@ import type { Match, Point, Rules, ServeLocation, ShotType, Side } from '../mode
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
 export type SituationFilter = 'all' | Situation;
-export type RallyLengthFilter = 'all' | 'short' | 'long';
+/** 'odd' = 1/3/5 shots (ended on the server's shot), 'even' = 2/4/6 shots (ended on the returner's shot). */
+export type RallyLengthFilter = 'all' | 'odd' | 'even' | 'long';
 
 export interface PointContext {
   point: Point;
@@ -156,8 +157,12 @@ export interface WinnerErrorCount {
 
 export type StrokeStats = PerSide<Record<'forehand' | 'backhand' | 'none', WinnerErrorCount>>;
 
-const inRallyLength = (count: number | null, f: RallyLengthFilter) =>
-  f === 'all' || (count !== null && (f === 'short' ? count >= 1 && count <= 6 : count >= 7));
+function inRallyLength(count: number | null, f: RallyLengthFilter): boolean {
+  if (f === 'all') return true;
+  if (count === null || count < 1) return false;
+  if (f === 'long') return count >= 7;
+  return count <= 6 && count % 2 === (f === 'odd' ? 1 : 0);
+}
 
 /** Forehand / backhand winners and unforced errors that ended a rally. */
 export function rallyStrokeStats(ctxs: PointContext[], length: RallyLengthFilter): StrokeStats {

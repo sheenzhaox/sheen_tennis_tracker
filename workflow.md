@@ -181,7 +181,7 @@ src/
    - Definitions: **Winners** = Ace (server) + Return Ace (receiver) + rally "winner & forced error" (player who ended it). **Unforced errors** = Double fault (server) + Return error (receiver) + rally unforced error. Unrecorded (manual) points count only in points won.
    - Summary per player: points won, winners (aces / return aces / rally winners), UE (DF / return errors / rally errors), 1st serve in %, 1st & 2nd serve points won %.
    - Serve location (Wide/Body/T/Not set) for a chosen server, 1st & 2nd serve: in / hit and won / in. Filters: side (All / Deuce / Ad) and situation (All / First point of a game / Game point / Break point; tiebreak points have no situation; no-ad 40-40 counts as both game and break point).
-   - Rally forehand/backhand winners & UE per player, filter All / 1-6 shots / 7+ shots (rallies without a count only in All).
+   - Rally forehand/backhand winners & UE per player, filter All / 1-3-5 (rallies of 1, 3 or 5 shots, ended on the server's shot) / 2-4-6 (2, 4 or 6 shots, ended on the returner's shot) / 7+ shots (either). Rallies without a count only in All.
    - Shot type counts (last shot of rally) per player, winners vs UE.
    - UE breakdown per player: stroke (Forehand / Backhand / Serve (DF) / not set), court position (Baseline / Approach / Net / not set), error type (Net / Long / Wide / not set; DF uses the 2nd serve's fault type, return errors use the return error).
 
