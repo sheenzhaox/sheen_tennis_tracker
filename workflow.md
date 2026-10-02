@@ -13,7 +13,7 @@
 
 ## Current Checkpoint
 
-- **Status (2026-10-02, session paused):** All work committed and pushed on `dev/build-match-tracker` (Cloudflare production branch -> live at https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page, rally page, scoring engine, point-by-point log, pinned score table, cloud sync (D1). `main` is behind and not deployed.
+- **Status (2026-10-02, session paused):** All work committed, pushed and deployed (Cloudflare build of `7a611ea` succeeded) on `dev/build-match-tracker` (production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page, scoring engine, point-by-point log, pinned score table with sync badge and "+" missed-point buttons, cloud sync (D1). `main` is behind and not deployed.
 - **Next step (ideas, not started):** stats/analysis views per match and per player; break/set/match point indicators; persist the in-progress point draft across reloads; export (CSV/JSON); optionally bring `main` up to date.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
