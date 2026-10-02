@@ -463,9 +463,39 @@ legend {
 }
 
 .point-count {
-  text-align: right;
-  margin: 0.25rem 0 0;
+  margin: 0;
   font-size: 0.8rem;
+}
+
+.dock-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.sync-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.sync-badge.ok {
+  color: var(--green);
+  background: var(--green-light);
+}
+
+.sync-badge.warn {
+  color: #8a5a00;
+  background: #fff3cd;
+}
+
+.sync-badge.bad {
+  color: var(--danger);
+  background: #fdecea;
 }
 
 /* Score table pinned to the bottom of the screen while tracking. */

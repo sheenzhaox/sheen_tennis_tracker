@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { usePendingCount, useSyncState } from '../hooks';
+import type { SyncState } from '../../storage/sync';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ScoreTable from '../components/ScoreTable';
 import OptionRow from '../components/OptionRow';
@@ -26,6 +28,29 @@ import {
   type ServeType,
   type Side,
 } from '../../model/types';
+
+function shortSync(s: SyncState, pending: number): string {
+  switch (s.status) {
+    case 'no-token':
+      return 'Sync off';
+    case 'unauthorized':
+      return 'Sync token rejected';
+    case 'offline':
+      return `Offline · ${pending} pending`;
+    case 'syncing':
+      return 'Syncing...';
+    case 'error':
+      return `Sync error · ${pending} pending`;
+    default:
+      return pending ? `${pending} pending` : '✓ Synced';
+  }
+}
+
+function syncTone(s: SyncState, pending: number): 'ok' | 'warn' | 'bad' {
+  if (s.status === 'unauthorized' || s.status === 'error' || s.status === 'no-token') return 'bad';
+  if (s.status === 'offline' || pending > 0) return 'warn';
+  return 'ok';
+}
 
 interface Props {
   match: Match;
@@ -60,6 +85,8 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const [draft, setDraft] = useState<Serve[]>([]);
   const [rally, setRally] = useState(false);
   const [sel, setSel] = useState<Selection>(EMPTY);
+  const sync = useSyncState();
+  const pending = usePendingCount();
   const [busy, setBusy] = useState(false);
 
   if (!points) return null;
@@ -241,7 +268,12 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
 
       <div className="score-dock">
         <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
-        <p className="muted point-count">Points played: {points.length}</p>
+        <div className="dock-footer">
+          <a className={`sync-badge ${syncTone(sync, pending)}`} href="#/settings">
+            {shortSync(sync, pending)}
+          </a>
+          <span className="muted point-count">Points played: {points.length}</span>
+        </div>
       </div>
     </div>
   );
