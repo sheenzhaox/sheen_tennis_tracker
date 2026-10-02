@@ -104,7 +104,7 @@ export interface Serve {
   return?: ReturnDetail;
 }
 
-export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error' | 'rally';
+export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error' | 'rally' | 'unrecorded';
 
 /** How a rally ended: a winner/forced error by one player, or an unforced error. */
 export type RallyEnding = 'server_winner' | 'returner_winner' | 'server_error' | 'returner_error';

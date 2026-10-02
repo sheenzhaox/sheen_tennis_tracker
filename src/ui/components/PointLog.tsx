@@ -25,6 +25,7 @@ const END_LABELS: Record<PointEnd, string> = {
   return_winner: 'Return Ace',
   return_error: 'Return error',
   rally: 'Rally',
+  unrecorded: 'Not recorded (manual score)',
 };
 
 const label = (list: { value: string; label: string }[], v: string | undefined) =>
@@ -87,7 +88,7 @@ export default function PointLog({ match, nameA, nameB }: Props) {
             <div>
               <strong>{name(p.winner)}</strong> won <span className="muted">· {END_LABELS[p.end]} · {name(p.server)} serving</span>
             </div>
-            <div className="muted">{p.serves.map(describeServe).join(' | ')}</div>
+            {p.serves.length > 0 && <div className="muted">{p.serves.map(describeServe).join(' | ')}</div>}
             {p.rally && <div className="muted">{describeRally(p.rally, name(p.server), name(p.server === 'A' ? 'B' : 'A'))}</div>}
           </li>
         );

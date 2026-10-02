@@ -510,6 +510,46 @@ legend {
   background: #fdecea;
 }
 
+.edit-score-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green);
+  cursor: pointer;
+}
+
+.edit-score-btn.on {
+  background: var(--green);
+  color: #fff;
+}
+
+.score-edit {
+  margin-bottom: 0.5rem;
+}
+
+.score-edit p {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+}
+
+.score-edit-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.score-edit-row .btn {
+  width: auto;
+  padding: 0.45rem 0.8rem;
+}
+
 /* Score table pinned to the bottom of the screen while tracking. */
 .score-dock {
   position: fixed;

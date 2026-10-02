@@ -176,6 +176,7 @@ src/
 18. Sync indicator on the match page (2026-10-02): badge in the docked score bar (left of "Points played"), links to Settings. States: ✓ Synced (green) / N pending, Offline · N pending, Syncing... (amber) / Sync off, Sync token rejected, Sync error (red). Auto-sync itself was already per change (1.5 s debounce, on reconnect, on app focus, every 60 s).
 19. Serve page: when Fault is selected, a "Fault type" row (Net/Long/Wide) appears after Serve type; optional, stored as `serve.fault`; it's the last row for faults (picking it completes the serve). Shown in the point log, e.g. "1st: Fault (Net, Wide)".
 20. Serve outcome colours: Ace = blue outline + blue text on white; selected -> solid blue with white text. Fault = red outline + red text on white; selected -> solid red with white text.
+21. Manual score adjustment: "Edit score" toggle in the score dock opens per-player "+ Point" / "+ Game" (+ Game adds points until the current game/tiebreak ends). Missed points are saved as normal points with `end: 'unrecorded'`, `serves: []`, no rally (all features None), correct server; match auto-completes if it reaches match point. Undo removes them one point at a time. Point log labels them "Not recorded (manual score)".
 
 ## Open Questions / TODO
 
