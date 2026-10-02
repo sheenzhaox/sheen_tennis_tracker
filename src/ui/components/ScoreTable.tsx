@@ -6,9 +6,12 @@ interface Props {
   noAd: boolean;
   nameA: string;
   nameB: string;
+  /** Adds a missed (unrecorded) point for a player. */
+  onAddPoint?: (side: Side) => void;
+  addDisabled?: boolean;
 }
 
-export default function ScoreTable({ score, noAd, nameA, nameB }: Props) {
+export default function ScoreTable({ score, noAd, nameA, nameB, onAddPoint, addDisabled }: Props) {
   const live = !score.winner;
   const labels = pointLabels(score, noAd);
   const showCurrentSet = live && !score.isMatchTiebreak;
@@ -21,6 +24,17 @@ export default function ScoreTable({ score, noAd, nameA, nameB }: Props) {
         <th scope="row">
           <span className={`serve-dot ${live && score.server === side ? 'on' : ''}`} aria-label={live && score.server === side ? 'serving' : undefined} />
           {name}
+          {onAddPoint && live && (
+            <button
+              type="button"
+              className="add-point-btn"
+              aria-label={`Add missed point for ${name}`}
+              disabled={addDisabled}
+              onClick={() => onAddPoint(side)}
+            >
+              +
+            </button>
+          )}
         </th>
         {score.sets.map((s, i) =>
           s.matchTiebreak && s.tiebreak ? (

@@ -98,7 +98,6 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const sync = useSyncState();
   const pending = usePendingCount();
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(false);
 
   if (!points) return null;
 
@@ -140,35 +139,25 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  /** Adds missed points with no details; `wholeGame` keeps adding until the current game (or tiebreak) ends. */
-  async function addUnrecorded(winner: Side, wholeGame: boolean) {
+  /** Adds a missed point with no details. */
+  async function addUnrecorded(winner: Side) {
     setBusy(true);
     try {
-      const ws = [...winners];
-      let prev = score;
       const now = Date.now();
-      for (;;) {
-        await saveRecord<Point>('points', {
-          id: newId(),
-          matchId: match.id,
-          seq: ws.length,
-          server: prev.server,
-          winner,
-          serves: [],
-          end: 'unrecorded',
-          createdAt: now + ws.length,
-          updatedAt: now,
-        });
-        ws.push(winner);
-        const next = computeScore(match.rules, firstServer, ws);
-        const gameOver =
-          next.winner !== null ||
-          next.sets.length !== prev.sets.length ||
-          next.games.a + next.games.b !== prev.games.a + prev.games.b;
-        prev = next;
-        if (!wholeGame || gameOver) break;
+      await saveRecord<Point>('points', {
+        id: newId(),
+        matchId: match.id,
+        seq: winners.length,
+        server,
+        winner,
+        serves: [],
+        end: 'unrecorded',
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (computeScore(match.rules, firstServer, [...winners, winner]).winner) {
+        await saveRecord<Match>('matches', { ...match, status: 'completed', finishedAt: now });
       }
-      if (prev.winner) await saveRecord<Match>('matches', { ...match, status: 'completed', finishedAt: now });
       setDraft([]);
       setRally(false);
       resetServe();
@@ -325,30 +314,18 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       </button>
 
       <div className="score-dock">
-        {editing && (
-          <div className="score-edit">
-            <p className="muted">Add missed points (saved with no details). Use Undo to remove.</p>
-            {(['A', 'B'] as const).map((s) => (
-              <div key={s} className="score-edit-row">
-                <span>{name(s)}</span>
-                <button type="button" className="btn" disabled={busy || !!score.winner} onClick={() => void addUnrecorded(s, false)}>
-                  + Point
-                </button>
-                <button type="button" className="btn" disabled={busy || !!score.winner} onClick={() => void addUnrecorded(s, true)}>
-                  + Game
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
+        <ScoreTable
+          score={score}
+          noAd={match.rules.noAd}
+          nameA={nameA}
+          nameB={nameB}
+          addDisabled={busy}
+          onAddPoint={(s) => void addUnrecorded(s)}
+        />
         <div className="dock-footer">
           <a className={`sync-badge ${syncTone(sync, pending)}`} href="#/settings">
             {shortSync(sync, pending)}
           </a>
-          <button type="button" className={`edit-score-btn ${editing ? 'on' : ''}`} onClick={() => setEditing(!editing)}>
-            {editing ? 'Done' : 'Edit score'}
-          </button>
           <span className="muted point-count">Points: {points.length}</span>
         </div>
       </div>
