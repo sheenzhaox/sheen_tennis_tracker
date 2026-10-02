@@ -242,7 +242,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
                   <button
                     key={r.value}
                     type="button"
-                    className={`btn ${sel.result === r.value ? 'btn-primary' : ''} ${r.value === 'fault' ? 'fault' : ''}`}
+                    className={`btn ${sel.result === r.value ? 'btn-primary' : ''} ${r.value === 'fault' || r.value === 'ace' ? r.value : ''}`}
                     aria-pressed={sel.result === r.value}
                     disabled={busy}
                     onClick={() => setSel({ ...sel, result: r.value })}

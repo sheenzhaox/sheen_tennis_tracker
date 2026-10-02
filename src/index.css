@@ -365,14 +365,22 @@ legend {
   padding: 0.6rem 0.4rem;
 }
 
-.btn.fault:not(.btn-primary) {
-  border-color: var(--danger);
-  color: var(--danger);
+.btn.ace {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
 }
 
-.btn.fault.btn-primary {
+.btn.fault {
   background: var(--danger);
   border-color: var(--danger);
+  color: #fff;
+}
+
+/* Ace/Fault are always filled, so mark the selected one with a ring. */
+.btn.ace.btn-primary,
+.btn.fault.btn-primary {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #212121;
 }
 
 .next-btn {
