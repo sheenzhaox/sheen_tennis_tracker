@@ -31,7 +31,7 @@ const label = (list: { value: string; label: string }[], v: string | undefined) 
   v && v !== 'none' ? list.find((x) => x.value === v)?.label : undefined;
 
 function describeServe(s: Serve, n: number): string {
-  const extras = [label(SERVE_LOCATIONS, s.location), label(SERVE_TYPES, s.type)].filter(Boolean);
+  const extras = [label(RETURN_ERRORS, s.fault), label(SERVE_LOCATIONS, s.location), label(SERVE_TYPES, s.type)].filter(Boolean);
   let text = `${n === 0 ? '1st' : '2nd'}: ${label(SERVE_RESULTS, s.result)}${extras.length ? ` (${extras.join(', ')})` : ''}`;
   if (s.return) {
     const r = [label(RETURN_STROKES, s.return.stroke), label(RETURN_DIRECTIONS, s.return.direction), label(RETURN_ERRORS, s.return.error)].filter(Boolean);

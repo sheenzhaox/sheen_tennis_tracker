@@ -65,14 +65,24 @@ interface Selection {
   error: ReturnError;
   location: ServeLocation;
   type: ServeType;
+  fault: ReturnError;
 }
 
-const EMPTY: Selection = { result: null, stroke: 'none', direction: 'none', error: 'none', location: 'none', type: 'none' };
+const EMPTY: Selection = {
+  result: null,
+  stroke: 'none',
+  direction: 'none',
+  error: 'none',
+  location: 'none',
+  type: 'none',
+  fault: 'none',
+};
 
 const isReturn = (r: ServeResult | null) => r === 'return_winner' || r === 'return_error';
 
 function toServe(s: Selection & { result: ServeResult }): Serve {
   const serve: Serve = { result: s.result, location: s.location, type: s.type };
+  if (s.result === 'fault') serve.fault = s.fault;
   if (s.result === 'return_winner') serve.return = { stroke: s.stroke, direction: s.direction };
   if (s.result === 'return_error') serve.return = { stroke: s.stroke, direction: s.direction, error: s.error };
   return serve;
@@ -155,7 +165,13 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
 
   // Picking a value in the last visible row completes the serve (if an outcome is chosen).
   const lastRow: keyof Selection =
-    sel.result === 'return_error' ? 'error' : sel.result === 'return_winner' ? 'direction' : 'type';
+    sel.result === 'fault'
+      ? 'fault'
+      : sel.result === 'return_error'
+        ? 'error'
+        : sel.result === 'return_winner'
+          ? 'direction'
+          : 'type';
 
   function pickRow<K extends Exclude<keyof Selection, 'result'>>(key: K, value: Selection[K]) {
     const next = { ...sel, [key]: sel[key] === value ? 'none' : value };
@@ -238,6 +254,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
 
               <OptionRow title="Serve location" options={SERVE_LOCATIONS} value={sel.location} disabled={busy} onPick={(v) => pickRow('location', v)} />
               <OptionRow title="Serve type" options={SERVE_TYPES} value={sel.type} disabled={busy} onPick={(v) => pickRow('type', v)} />
+
+              {sel.result === 'fault' && (
+                <OptionRow title="Fault type" options={RETURN_ERRORS} value={sel.fault} disabled={busy} onPick={(v) => pickRow('fault', v)} />
+              )}
 
               {isReturn(sel.result) && (
                 <>

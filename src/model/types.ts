@@ -98,6 +98,8 @@ export interface Serve {
   result: ServeResult;
   location: ServeLocation;
   type: ServeType;
+  /** Only for a fault. */
+  fault?: ReturnError;
   /** Set when the point ended on the return (Return Ace / Unforced Error Return). */
   return?: ReturnDetail;
 }
