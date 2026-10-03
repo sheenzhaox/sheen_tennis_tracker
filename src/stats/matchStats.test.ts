@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  errorBreakdown,
+  errorTypeStats,
   pointContexts,
+  rallyWinnerStats,
   serveLocationStats,
   shotTypeStats,
   strokeStats,
@@ -111,14 +112,23 @@ describe('match stats', () => {
     expect(strokeStats(ctxs, 'A', 'return').every((r) => r.total === 0)).toBe(true);
   });
 
+  it('rally winners by direction and shot type', () => {
+    const fh = rallyWinnerStats(ctxs, 'forehand');
+    expect(fh.direction.A.middle).toBe(1);
+    expect(fh.shotType.A.topspin).toBe(1);
+    expect(rallyWinnerStats(ctxs, 'backhand').direction.A.middle).toBe(0);
+  });
+
   it('shot types and error breakdown', () => {
     expect(shotTypeStats(ctxs).A.topspin.winners).toBe(1);
     expect(shotTypeStats(ctxs).B.slice.errors).toBe(1);
-    const e = errorBreakdown(ctxs);
-    expect(e.A.stroke.serve).toBe(1);
-    expect(e.A.type.net).toBe(1);
-    expect(e.B.stroke.backhand).toBe(1);
-    expect(e.B.position.baseline).toBe(1);
-    expect(e.B.type.long).toBe(1);
+    const all = errorTypeStats(ctxs, 'all', 'all');
+    expect(all.A.net).toBe(1);
+    expect(all.B.long).toBe(1);
+    expect(errorTypeStats(ctxs, 'forehand', 'all').A.net).toBe(0);
+    expect(errorTypeStats(ctxs, 'backhand', 'baseline').B.long).toBe(1);
+    expect(errorTypeStats(ctxs, 'backhand', 'net').B.long).toBe(0);
+    // Double fault: no stroke filter, position defaults to baseline.
+    expect(errorTypeStats(ctxs, 'all', 'baseline').A.net).toBe(1);
   });
 });

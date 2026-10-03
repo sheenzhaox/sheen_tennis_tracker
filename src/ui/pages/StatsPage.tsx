@@ -4,17 +4,20 @@ import Header from '../components/Header';
 import { db, isLive, pointsForMatch } from '../../storage/db';
 import { usePlayerNames } from '../hooks';
 import {
-  errorBreakdown,
+  errorTypeStats,
   pointContexts,
+  rallyWinnerStats,
   serveLocationStats,
   shotTypeStats,
   strokeStats,
   summary,
   type GameFilter,
+  type PositionFilter,
   type SideFilter,
   type SituationFilter,
+  type StrokeFilter,
 } from '../../stats/matchStats';
-import { SERVE_LOCATIONS, SHOT_POSITIONS, SHOT_TYPES, type Side } from '../../model/types';
+import { SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, SHOT_TYPES, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
@@ -24,6 +27,19 @@ function Chips<T extends string>({ value, options, onChange }: { value: T; optio
     <div className="chips">
       {options.map((o) => (
         <button key={o.value} type="button" className={`chip ${value === o.value ? 'on' : ''}`} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Chips where tapping the selected one clears it back to 'all'. */
+function ToggleChips<T extends string>({ value, options, onChange }: { value: T | 'all'; options: { value: T; label: string }[]; onChange: (v: T | 'all') => void }) {
+  return (
+    <div className="chips">
+      {options.map((o) => (
+        <button key={o.value} type="button" className={`chip ${value === o.value ? 'on' : ''}`} onClick={() => onChange(value === o.value ? 'all' : o.value)}>
           {o.label}
         </button>
       ))}
@@ -64,6 +80,9 @@ export default function StatsPage({ id }: { id: string }) {
   const [situation, setSituation] = useState<SituationFilter>('all');
   const [strokePlayer, setStrokePlayer] = useState<Side>('A');
   const [games, setGames] = useState<GameFilter>('all');
+  const [winnerStroke, setWinnerStroke] = useState<'forehand' | 'backhand'>('forehand');
+  const [ueStroke, setUeStroke] = useState<StrokeFilter>('all');
+  const [uePosition, setUePosition] = useState<PositionFilter>('all');
 
   if (match === undefined || points === undefined) return null;
   if (match === null) {
@@ -83,8 +102,9 @@ export default function StatsPage({ id }: { id: string }) {
   const sum = summary(ctxs);
   const loc = serveLocationStats(ctxs, server, side, situation);
   const strokes = strokeStats(ctxs, strokePlayer, games);
+  const rw = rallyWinnerStats(ctxs, winnerStroke);
   const shots = shotTypeStats(ctxs);
-  const errs = errorBreakdown(ctxs);
+  const errs = errorTypeStats(ctxs, ueStroke, uePosition);
   const both = (f: (s: Side) => ReactNode): ReactNode[] => [f('A'), f('B')];
   const locLabel = (v: string) => SERVE_LOCATIONS.find((l) => l.value === v)?.label ?? 'Not set';
 
@@ -169,6 +189,19 @@ export default function StatsPage({ id }: { id: string }) {
           rally count (rallies without a count only appear in totals). Winners include forced errors. Return rows use the return stroke.
         </p>
 
+        <h2>Rally winners</h2>
+        <Chips
+          value={winnerStroke}
+          onChange={setWinnerStroke}
+          options={[
+            { value: 'forehand', label: 'Forehand' },
+            { value: 'backhand', label: 'Backhand' },
+          ]}
+        />
+        <Table head={['Shot direction', a, b]} rows={SHOT_DIRECTIONS.map((d) => [d.label, ...both((s) => rw.direction[s][d.value])])} />
+        <Table head={['Shot type', a, b]} rows={SHOT_TYPES.map((t) => [t.label, ...both((s) => rw.shotType[s][t.value])])} />
+        <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; shot type not set counts as Topspin.</p>
+
         <h2>Shot type</h2>
         <Table
           head={['', `${a} W`, `${a} UE`, `${b} W`, `${b} UE`]}
@@ -182,30 +215,26 @@ export default function StatsPage({ id }: { id: string }) {
         />
 
         <h2>Unforced errors</h2>
-        <Table
-          head={['', a, b]}
-          rows={[
-            ['Forehand', ...both((s) => errs[s].stroke.forehand)],
-            ['Backhand', ...both((s) => errs[s].stroke.backhand)],
-            ['Serve (DF)', ...both((s) => errs[s].stroke.serve)],
-            ['Stroke not set', ...both((s) => errs[s].stroke.none)],
+        <ToggleChips
+          value={ueStroke}
+          onChange={setUeStroke}
+          options={[
+            { value: 'forehand', label: 'Forehand' },
+            { value: 'backhand', label: 'Backhand' },
           ]}
         />
-        <Table
-          head={['Court position', a, b]}
-          rows={[...SHOT_POSITIONS, { value: 'none' as const, label: 'Not set' }].map((pos) => [
-            pos.label,
-            ...both((s) => errs[s].position[pos.value]),
-          ])}
-        />
+        <ToggleChips value={uePosition} onChange={setUePosition} options={SHOT_POSITIONS} />
         <Table
           head={['Error type', a, b]}
           rows={(['net', 'long', 'wide', 'none'] as const).map((t) => [
             t === 'none' ? 'Not set' : t[0].toUpperCase() + t.slice(1),
-            ...both((s) => errs[s].type[t]),
+            ...both((s) => errs[s][t]),
           ])}
         />
-        <p className="muted small">Includes double faults (fault type of the 2nd serve), return errors and rally unforced errors.</p>
+        <p className="muted small">
+          No stroke selected = all unforced errors (incl. double faults and stroke not set). No position selected = all positions;
+          position not set (and double faults / return errors) counts as Baseline.
+        </p>
       </main>
     </>
   );

@@ -1,5 +1,5 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
-import type { Match, Point, Rules, ServeLocation, ShotType, Side } from '../model/types';
+import type { Match, Point, Rules, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
@@ -254,38 +254,56 @@ export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
   return out;
 }
 
-export interface ErrorBreakdown {
-  stroke: Record<'forehand' | 'backhand' | 'serve' | 'none', number>;
-  position: Record<'baseline' | 'approach' | 'net' | 'none', number>;
-  type: Record<'net' | 'long' | 'wide' | 'none', number>;
+export interface RallyWinnerStats {
+  direction: PerSide<Record<Exclude<ShotDirection, 'none'>, number>>;
+  shotType: PerSide<Record<Exclude<ShotType, 'none'>, number>>;
 }
 
-/** Unforced errors (double faults, return errors, rally errors) by stroke, court position and error type. */
-export function errorBreakdown(ctxs: PointContext[]): PerSide<ErrorBreakdown> {
-  const empty = (): ErrorBreakdown => ({
-    stroke: { forehand: 0, backhand: 0, serve: 0, none: 0 },
-    position: { baseline: 0, approach: 0, net: 0, none: 0 },
-    type: { net: 0, long: 0, wide: 0, none: 0 },
-  });
-  const out: PerSide<ErrorBreakdown> = { A: empty(), B: empty() };
+const DIRECTIONS: Exclude<ShotDirection, 'none'>[] = ['crosscourt', 'down_the_line', 'inside_out', 'inside_in', 'middle', 'short_angle'];
+
+/** Rally winners hit with one stroke, by direction (unset = middle) and shot type (unset = topspin). */
+export function rallyWinnerStats(ctxs: PointContext[], stroke: 'forehand' | 'backhand'): RallyWinnerStats {
+  const dirs = () => Object.fromEntries(DIRECTIONS.map((d) => [d, 0])) as RallyWinnerStats['direction']['A'];
+  const types = () => Object.fromEntries(SHOT_TYPES.filter((t) => t !== 'none').map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
+  const out: RallyWinnerStats = { direction: { A: dirs(), B: dirs() }, shotType: { A: types(), B: types() } };
+  for (const { point: p } of ctxs) {
+    if (p.end !== 'rally' || !p.rally || p.rally.stroke !== stroke) continue;
+    const { winnerBy } = pointOutcome(p);
+    if (!winnerBy) continue;
+    out.direction[winnerBy][p.rally.direction === 'none' ? 'middle' : p.rally.direction]++;
+    out.shotType[winnerBy][p.rally.shotType === 'none' ? 'topspin' : p.rally.shotType]++;
+  }
+  return out;
+}
+
+export type ErrorType = 'net' | 'long' | 'wide' | 'none';
+export type StrokeFilter = 'all' | 'forehand' | 'backhand';
+export type PositionFilter = 'all' | 'baseline' | 'approach' | 'net';
+
+/**
+ * Unforced errors (double faults, return errors, rally errors) by error type, filtered by stroke and court position.
+ * Position not set counts as baseline; double faults only appear when no stroke is chosen.
+ */
+export function errorTypeStats(ctxs: PointContext[], stroke: StrokeFilter, position: PositionFilter): PerSide<Record<ErrorType, number>> {
+  const empty = (): Record<ErrorType, number> => ({ net: 0, long: 0, wide: 0, none: 0 });
+  const out: PerSide<Record<ErrorType, number>> = { A: empty(), B: empty() };
   for (const { point: p } of ctxs) {
     const { errorBy } = pointOutcome(p);
     if (!errorBy) continue;
-    const e = out[errorBy];
+    let s: string;
+    let pos: string;
+    let type: ErrorType;
     if (p.end === 'double_fault') {
-      e.stroke.serve++;
-      e.position.none++;
-      e.type[p.serves.at(-1)?.fault ?? 'none']++;
+      [s, pos, type] = ['serve', 'baseline', p.serves.at(-1)?.fault ?? 'none'];
     } else if (p.end === 'return_error') {
       const r = p.serves.at(-1)?.return;
-      e.stroke[r?.stroke ?? 'none']++;
-      e.position.none++;
-      e.type[r?.error ?? 'none']++;
+      [s, pos, type] = [r?.stroke ?? 'none', 'baseline', r?.error ?? 'none'];
     } else if (p.rally) {
-      e.stroke[p.rally.stroke]++;
-      e.position[p.rally.position]++;
-      e.type[p.rally.error ?? 'none']++;
-    }
+      [s, pos, type] = [p.rally.stroke, p.rally.position === 'none' ? 'baseline' : p.rally.position, p.rally.error ?? 'none'];
+    } else continue;
+    if (stroke !== 'all' && s !== stroke) continue;
+    if (position !== 'all' && pos !== position) continue;
+    out[errorBy][type]++;
   }
   return out;
 }

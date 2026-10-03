@@ -205,6 +205,8 @@ src/
    - Service games: Aces, Double faults, Serve +1 (winner at shot 3), Serve advantage (winners at 1/3/5), Serve disadvantage (opponent winners at 2/4/6).
    - Return games: Return aces, Return errors, Return advantage (winners at 2/4/6).
    - Winners include forced errors; return points use the return stroke for FH/BH.
+29. Stats: "Rally winners" section (`rallyWinnerStats(ctxs, stroke)`): switch Forehand / Backhand; tables for both players by shot direction (not set -> Middle) and shot type (not set -> Topspin). Rally winners incl. forced errors; rallies with stroke not set are excluded.
+30. Stats: "Unforced errors" section now filterable (`errorTypeStats(ctxs, stroke, position)`): row 1 Forehand / Backhand toggle (none = all UE incl. DF and stroke not set), row 2 Baseline / Approach / Net toggle (none = all; position not set, DF and return errors count as Baseline). Shows error type (Net / Long / Wide / Not set) for both players. Replaced the old stroke / position / type tables (`errorBreakdown` removed).
 
 ## Open Questions / TODO
 
