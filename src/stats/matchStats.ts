@@ -4,8 +4,7 @@ import type { Match, Point, Rules, ServeLocation, ShotType, Side } from '../mode
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
 export type SituationFilter = 'all' | Situation;
-/** 'odd' = 1/3/5 shots (ended on the server's shot), 'even' = 2/4/6 shots (ended on the returner's shot). */
-export type RallyLengthFilter = 'all' | 'odd' | 'even' | 'long';
+export type GameFilter = 'all' | 'serve' | 'return';
 
 export interface PointContext {
   point: Point;
@@ -155,26 +154,88 @@ export interface WinnerErrorCount {
   errors: number;
 }
 
-export type StrokeStats = PerSide<Record<'forehand' | 'backhand' | 'none', WinnerErrorCount>>;
-
-function inRallyLength(count: number | null, f: RallyLengthFilter): boolean {
-  if (f === 'all') return true;
-  if (count === null || count < 1) return false;
-  if (f === 'long') return count >= 7;
-  return count <= 6 && count % 2 === (f === 'odd' ? 1 : 0);
+/** Total shots in the point: ace / DF = 1, return ace / return error = 2, rally = recorded count. */
+export function rallyLength(p: Point): number | null {
+  switch (p.end) {
+    case 'ace':
+    case 'double_fault':
+      return 1;
+    case 'return_winner':
+    case 'return_error':
+      return 2;
+    case 'rally':
+      return p.rally?.count ?? null;
+    default:
+      return null;
+  }
 }
 
-/** Forehand / backhand winners and unforced errors that ended a rally. */
-export function rallyStrokeStats(ctxs: PointContext[], length: RallyLengthFilter): StrokeStats {
-  const row = () => ({ forehand: { winners: 0, errors: 0 }, backhand: { winners: 0, errors: 0 }, none: { winners: 0, errors: 0 } });
-  const out: StrokeStats = { A: row(), B: row() };
+function endingStroke(p: Point): 'forehand' | 'backhand' | 'none' | 'serve' {
+  if (p.end === 'ace' || p.end === 'double_fault') return 'serve';
+  if (p.end === 'return_winner' || p.end === 'return_error') return p.serves.at(-1)?.return?.stroke ?? 'none';
+  return p.rally?.stroke ?? 'none';
+}
+
+export interface StrokeRow {
+  label: string;
+  total: number;
+  /** null when forehand/backhand doesn't apply (serve-only rows). */
+  forehand: number | null;
+  backhand: number | null;
+}
+
+interface Ending {
+  point: Point;
+  by: Side;
+  winner: boolean;
+  length: number | null;
+}
+
+const between = (n: number | null, lo: number, hi = Infinity) => n !== null && n >= lo && n <= hi;
+const oneOf = (n: number | null, ...xs: number[]) => n !== null && xs.includes(n);
+
+/** Winners / unforced errors for one player split by forehand and backhand, for all, service or return games. */
+export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilter): StrokeRow[] {
+  const opp = other(player);
+  const endings: Ending[] = [];
   for (const { point: p } of ctxs) {
-    if (p.end !== 'rally' || !p.rally || !inRallyLength(p.rally.count, length)) continue;
+    if (games === 'serve' && p.server !== player) continue;
+    if (games === 'return' && p.server === player) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
-    const by = (winnerBy ?? errorBy)!;
-    out[by][p.rally.stroke][winnerBy ? 'winners' : 'errors']++;
+    const by = winnerBy ?? errorBy;
+    if (by) endings.push({ point: p, by, winner: !!winnerBy, length: rallyLength(p) });
   }
-  return out;
+  const row = (label: string, match: (e: Ending) => boolean, strokes = true): StrokeRow => {
+    const hits = endings.filter(match);
+    const count = (s: 'forehand' | 'backhand') => hits.filter((e) => endingStroke(e.point) === s).length;
+    return { label, total: hits.length, forehand: strokes ? count('forehand') : null, backhand: strokes ? count('backhand') : null };
+  };
+  const mine = (winner: boolean) => (e: Ending) => e.by === player && e.winner === winner;
+
+  if (games === 'serve') {
+    return [
+      row('Aces', (e) => e.point.end === 'ace' && e.by === player, false),
+      row('Double faults', (e) => e.point.end === 'double_fault' && e.by === player, false),
+      row('Serve +1 (winner at shot 3)', (e) => mine(true)(e) && e.length === 3),
+      row('Serve advantage (winners at 1/3/5)', (e) => mine(true)(e) && oneOf(e.length, 1, 3, 5)),
+      row('Serve disadvantage (opp. winners at 2/4/6)', (e) => e.by === opp && e.winner && oneOf(e.length, 2, 4, 6)),
+    ];
+  }
+  if (games === 'return') {
+    return [
+      row('Return aces', (e) => e.point.end === 'return_winner' && e.by === player),
+      row('Return errors', (e) => e.point.end === 'return_error' && e.by === player),
+      row('Return advantage (winners at 2/4/6)', (e) => mine(true)(e) && oneOf(e.length, 2, 4, 6)),
+    ];
+  }
+  return [
+    row('Winners', mine(true)),
+    row('Unforced errors', mine(false)),
+    row('Short rally winners (1-6)', (e) => mine(true)(e) && between(e.length, 1, 6)),
+    row('Short rally UE (1-6)', (e) => mine(false)(e) && between(e.length, 1, 6)),
+    row('Long rally winners (7+)', (e) => mine(true)(e) && between(e.length, 7)),
+    row('Long rally UE (7+)', (e) => mine(false)(e) && between(e.length, 7)),
+  ];
 }
 
 export type ShotTypeStats = PerSide<Record<ShotType, WinnerErrorCount>>;

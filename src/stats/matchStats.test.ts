@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   errorBreakdown,
   pointContexts,
-  rallyStrokeStats,
   serveLocationStats,
   shotTypeStats,
+  strokeStats,
   summary,
 } from './matchStats';
 import { DEFAULT_RULES } from '../model/rules';
@@ -88,12 +88,27 @@ describe('match stats', () => {
     expect(first.wide.first.count).toBe(0);
   });
 
-  it('rally strokes by length', () => {
-    expect(rallyStrokeStats(ctxs, 'all').A.forehand.winners).toBe(1);
-    expect(rallyStrokeStats(ctxs, 'odd').A.forehand.winners).toBe(1);
-    expect(rallyStrokeStats(ctxs, 'even').A.forehand.winners).toBe(0);
-    expect(rallyStrokeStats(ctxs, 'odd').B.backhand.errors).toBe(0);
-    expect(rallyStrokeStats(ctxs, 'long').B.backhand.errors).toBe(1);
+  it('forehand / backhand by game type', () => {
+    const byLabel = (rows: ReturnType<typeof strokeStats>) => Object.fromEntries(rows.map((r) => [r.label.split(' (')[0], r]));
+    const allA = byLabel(strokeStats(ctxs, 'A', 'all'));
+    expect(allA['Winners']).toMatchObject({ total: 2, forehand: 1, backhand: 0 });
+    expect(allA['Unforced errors'].total).toBe(1);
+    expect(allA['Short rally winners'].total).toBe(2);
+    const allB = byLabel(strokeStats(ctxs, 'B', 'all'));
+    expect(allB['Winners']).toMatchObject({ total: 1, forehand: 1 });
+    expect(allB['Long rally UE']).toMatchObject({ total: 1, backhand: 1 });
+
+    const serveA = byLabel(strokeStats(ctxs, 'A', 'serve'));
+    expect(serveA['Aces']).toMatchObject({ total: 1, forehand: null });
+    expect(serveA['Double faults'].total).toBe(1);
+    expect(serveA['Serve +1']).toMatchObject({ total: 1, forehand: 1 });
+    expect(serveA['Serve advantage'].total).toBe(2);
+    expect(serveA['Serve disadvantage']).toMatchObject({ total: 1, forehand: 1 });
+
+    const returnB = byLabel(strokeStats(ctxs, 'B', 'return'));
+    expect(returnB['Return aces']).toMatchObject({ total: 1, forehand: 1 });
+    expect(returnB['Return advantage'].total).toBe(1);
+    expect(strokeStats(ctxs, 'A', 'return').every((r) => r.total === 0)).toBe(true);
   });
 
   it('shot types and error breakdown', () => {

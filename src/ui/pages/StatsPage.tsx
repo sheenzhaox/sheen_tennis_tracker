@@ -6,11 +6,11 @@ import { usePlayerNames } from '../hooks';
 import {
   errorBreakdown,
   pointContexts,
-  rallyStrokeStats,
   serveLocationStats,
   shotTypeStats,
+  strokeStats,
   summary,
-  type RallyLengthFilter,
+  type GameFilter,
   type SideFilter,
   type SituationFilter,
 } from '../../stats/matchStats';
@@ -62,7 +62,8 @@ export default function StatsPage({ id }: { id: string }) {
   const [server, setServer] = useState<Side>('A');
   const [side, setSide] = useState<SideFilter>('all');
   const [situation, setSituation] = useState<SituationFilter>('all');
-  const [length, setLength] = useState<RallyLengthFilter>('all');
+  const [strokePlayer, setStrokePlayer] = useState<Side>('A');
+  const [games, setGames] = useState<GameFilter>('all');
 
   if (match === undefined || points === undefined) return null;
   if (match === null) {
@@ -81,7 +82,7 @@ export default function StatsPage({ id }: { id: string }) {
   const ctxs = pointContexts(match, points);
   const sum = summary(ctxs);
   const loc = serveLocationStats(ctxs, server, side, situation);
-  const strokes = rallyStrokeStats(ctxs, length);
+  const strokes = strokeStats(ctxs, strokePlayer, games);
   const shots = shotTypeStats(ctxs);
   const errs = errorBreakdown(ctxs);
   const both = (f: (s: Side) => ReactNode): ReactNode[] => [f('A'), f('B')];
@@ -150,30 +151,22 @@ export default function StatsPage({ id }: { id: string }) {
           "in" = serves in / serves hit at that location; "won" = points won / serves in.
         </p>
 
-        <h2>Rally: forehand / backhand</h2>
-        <Chips
-          value={length}
-          onChange={setLength}
-          options={[
-            { value: 'all', label: 'All rallies' },
-            { value: 'odd', label: '1-3-5' },
-            { value: 'even', label: '2-4-6' },
-            { value: 'long', label: '7+ shots' },
-          ]}
-        />
+        <h2>Forehand / backhand</h2>
+        <Chips value={strokePlayer} onChange={setStrokePlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />
+        <div className="chips">
+          {(['serve', 'return'] as const).map((g) => (
+            <button key={g} type="button" className={`chip ${games === g ? 'on' : ''}`} onClick={() => setGames(games === g ? 'all' : g)}>
+              {g === 'serve' ? 'Service games' : 'Return games'}
+            </button>
+          ))}
+        </div>
         <Table
-          head={['', `${a} W`, `${a} UE`, `${b} W`, `${b} UE`]}
-          rows={(['forehand', 'backhand', 'none'] as const).map((k) => [
-            k === 'none' ? 'Not set' : k === 'forehand' ? 'Forehand' : 'Backhand',
-            strokes.A[k].winners,
-            strokes.A[k].errors,
-            strokes.B[k].winners,
-            strokes.B[k].errors,
-          ])}
+          head={['', 'Total', 'Forehand', 'Backhand']}
+          rows={strokes.map((r) => [r.label, r.total, r.forehand ?? '-', r.backhand ?? '-'])}
         />
         <p className="muted small">
-          W = winner & forced error, UE = unforced error (last shot of the rally). 1-3-5 = rallies of 1, 3 or 5 shots (ended on the
-          server's shot); 2-4-6 = 2, 4 or 6 shots (ended on the returner's shot); 7+ = either.
+          Neither selected = all games. Shot count: ace / double fault = 1, return ace / return error = 2, rallies use the recorded
+          rally count (rallies without a count only appear in totals). Winners include forced errors. Return rows use the return stroke.
         </p>
 
         <h2>Shot type</h2>

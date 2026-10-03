@@ -13,9 +13,8 @@
 
 ## Current Checkpoint
 
-- **Status (2026-10-02, session paused):** All work committed, pushed and deployed (Cloudflare build of `11eaa5d` succeeded) on `dev/build-match-tracker` (production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page, scoring engine, point-by-point log, pinned score table with sync badge and "+" missed-point buttons, cloud sync (D1), match stats page. `main` is behind and not deployed.
-- **Waiting on:** user field test in a real match (2026-10-03) -> collect feedback and fix first.
-- **Next step (ideas, not started):** player-level stats across matches; stats export (CSV/JSON); break/set/match point indicators on the tracker; persist the in-progress point draft across reloads; optionally bring `main` up to date.
+- **Status (2026-10-03):** All work committed, pushed and deployed on `dev/build-match-tracker` (latest `37d19f7`; production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page (4-button point ending), scoring engine, point-by-point log, compact pinned score table with sync badge and "+" missed-point buttons, short player names, cloud sync (D1), match stats page. `main` is behind and not deployed.
+- **In progress:** field-test feedback fixes (steps 23-26 done on 2026-10-03). Second field test (2 sets, match `c2d6171f-a8e8-4255-9e58-3c6b9aeb8cfe`) worked fine. Next: wait for new feedback, or pick from "Future Implementation".
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### How to resume (new session)
@@ -38,6 +37,15 @@
 - [x] Cloudflare dashboard: production branch switched back to `main` (`main` = production + prod DB; other branches = previews + preview DB)
 - [x] DECIDED (2026-10-01): work only on `dev/build-match-tracker`; Cloudflare production branch = `dev/build-match-tracker` (deploys live site + prod DB). Non-production branch builds stay off; `main` is not deployed. `dev/match-setup` merged into it.
 - Note: laptop network intercepts TLS (`SELF_SIGNED_CERT_IN_CHAIN`). **Fix (verified):** `$env:NODE_OPTIONS='--use-system-ca'` before wrangler commands (Node trusts the Windows cert store). Persist with `[Environment]::SetEnvironmentVariable('NODE_OPTIONS','--use-system-ca','User')`.
+
+## Future Implementation
+
+Ideas kept for later (not started):
+1. **Break / set / match point indicators** on the tracker (e.g. "BP" tag in the status bar).
+2. **Persist the in-progress point draft** across reloads (currently a reload after a 1st-serve fault restarts the point).
+3. **Player-level stats across matches** (aggregate the per-match stats per player).
+4. **Stats export** (CSV / JSON per match) for external analysis.
+- Housekeeping: optionally bring `main` up to date with `dev/build-match-tracker`.
 
 ## Feasibility Analysis (2026-10-01)
 
@@ -191,6 +199,12 @@ src/
 24. Serve page: "Fault type" row moved between Serve location and Serve type. Serve type is now the last row for faults too (picking it completes the serve).
 25. Docked score bar made compact (smaller padding, 0.9rem table font, smaller "+" buttons, 0.7rem sync badge / points count); page bottom padding 10rem -> 7.5rem.
 26. Short player names (`shortName` in `format.ts`: "Ellie Zhao" -> "E. ZHAO") in the match page header and the serve status bar. Status bar compacted to one row (0.85rem, nowrap, "Deuce"/"Ad", "TB"/"MTB").
+27. Field test with the updated build: 2 sets recorded (match `c2d6171f-a8e8-4255-9e58-3c6b9aeb8cfe`), no issues reported.
+28. Stats: rally length unified (`rallyLength`): ace / DF = 1, return ace / return error = 2, rally = recorded rally count (null if not counted). "Rally: forehand / backhand" replaced by "Forehand / backhand" (`strokeStats(ctxs, player, games)`): row 1 player switch, row 2 optional toggle Service games / Return games (neither = all games). Columns Total / Forehand / Backhand ("-" where n/a). Rows:
+   - All games: Winners (ace + return ace + rally winner), Unforced errors (DF + return error + rally UE), Short rally winners / UE (1-6 shots), Long rally winners / UE (7+).
+   - Service games: Aces, Double faults, Serve +1 (winner at shot 3), Serve advantage (winners at 1/3/5), Serve disadvantage (opponent winners at 2/4/6).
+   - Return games: Return aces, Return errors, Return advantage (winners at 2/4/6).
+   - Winners include forced errors; return points use the return stroke for FH/BH.
 
 ## Open Questions / TODO
 
