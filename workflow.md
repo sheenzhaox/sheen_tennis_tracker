@@ -186,6 +186,10 @@ src/
    - Shot type counts (last shot of rally) per player, winners vs UE.
    - UE breakdown per player: stroke (Forehand / Backhand / Serve (DF) / not set), court position (Baseline / Approach / Net / not set), error type (Net / Long / Wide / not set; DF uses the 2nd serve's fault type, return errors use the return error).
 
+### 2026-10-03
+23. Rally page: "Point ended by" + "Ending" rows merged into one "Point ending" group of 4 buttons (single choice): row 1 `<server> winner` / `<returner> winner` (blue, like Ace), row 2 `<server> UE` / `<returner> UE` (red, like Fault). Stored `RallyEnding` values unchanged.
+24. Serve page: "Fault type" row moved between Serve location and Serve type. Serve type is now the last row for faults too (picking it completes the serve).
+
 ## Open Questions / TODO
 
 - [x] Define project goal and core features
