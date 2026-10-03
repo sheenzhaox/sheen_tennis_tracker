@@ -25,3 +25,10 @@ export function formatMatchDay(m: Match): string {
 export const matchSortKey = (m: Match) => m.startedAt ?? m.createdAt ?? m.updatedAt;
 
 export const surfaceLabel = (s?: Surface) => SURFACES.find((x) => x.value === s)?.label ?? s ?? '';
+
+/** "Ellie Zhao" -> "E. ZHAO"; single names are just uppercased. */
+export function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length < 2) return full.trim().toUpperCase();
+  return `${parts[0][0].toUpperCase()}. ${parts.at(-1)!.toUpperCase()}`;
+}

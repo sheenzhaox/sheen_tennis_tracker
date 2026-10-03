@@ -325,12 +325,15 @@ legend {
 
 .serve-status {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
-  gap: 0.25rem 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 10px;
   background: var(--green-light);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .serve-no {
@@ -598,20 +601,47 @@ legend {
   z-index: 2;
   max-width: 40rem;
   margin: 0 auto;
-  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
+  padding: 0.3rem 0.75rem calc(0.3rem + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.score-dock .score-table {
+  font-size: 0.9rem;
+}
+
 .score-dock .score-table th,
 .score-dock .score-table td {
-  padding: 0.35rem 0.5rem;
+  padding: 0.15rem 0.4rem;
+}
+
+.score-dock .score-table thead th {
+  font-size: 0.7rem;
+}
+
+.score-dock .add-point-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-left: 0.4rem;
+}
+
+.score-dock .dock-footer {
+  margin-top: 0.2rem;
+}
+
+.score-dock .point-count,
+.score-dock .sync-badge {
+  font-size: 0.7rem;
+}
+
+.score-dock .sync-badge {
+  padding: 0 0.4rem;
 }
 
 /* Keep the last content above the docked score table. */
 .page:has(.score-dock) {
-  padding-bottom: 10rem;
+  padding-bottom: 7.5rem;
 }
 
 .match-details {

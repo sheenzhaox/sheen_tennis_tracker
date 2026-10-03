@@ -8,7 +8,7 @@ import { db, deleteRecord, isLive } from '../../storage/db';
 import { describeRules } from '../../model/rules';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
-import { formatMatchDay, formatTime, surfaceLabel } from '../format';
+import { formatMatchDay, formatTime, shortName, surfaceLabel } from '../format';
 
 export default function MatchPage({ id }: { id: string }) {
   const match = useLiveQuery(async () => {
@@ -43,7 +43,7 @@ export default function MatchPage({ id }: { id: string }) {
 
   return (
     <>
-      <Header title={`${a} vs ${b}`} back="/match" action={<a href={`#/match/${id}/stats`}>Stats</a>} />
+      <Header title={`${shortName(a)} vs ${shortName(b)}`} back="/match" action={<a href={`#/match/${id}/stats`}>Stats</a>} />
       <main className="page">
         <MatchTracker match={match} nameA={a} nameB={b} />
         <details className="match-details" onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>

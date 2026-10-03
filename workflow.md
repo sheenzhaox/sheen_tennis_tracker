@@ -189,6 +189,8 @@ src/
 ### 2026-10-03
 23. Rally page: "Point ended by" + "Ending" rows merged into one "Point ending" group of 4 buttons (single choice): row 1 `<server> winner` / `<returner> winner` (blue, like Ace), row 2 `<server> UE` / `<returner> UE` (red, like Fault). Stored `RallyEnding` values unchanged.
 24. Serve page: "Fault type" row moved between Serve location and Serve type. Serve type is now the last row for faults too (picking it completes the serve).
+25. Docked score bar made compact (smaller padding, 0.9rem table font, smaller "+" buttons, 0.7rem sync badge / points count); page bottom padding 10rem -> 7.5rem.
+26. Short player names (`shortName` in `format.ts`: "Ellie Zhao" -> "E. ZHAO") in the match page header and the serve status bar. Status bar compacted to one row (0.85rem, nowrap, "Deuce"/"Ad", "TB"/"MTB").
 
 ## Open Questions / TODO
 

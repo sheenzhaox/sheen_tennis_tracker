@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import ScoreTable from '../components/ScoreTable';
 import OptionRow from '../components/OptionRow';
 import RallyEntry from '../components/RallyEntry';
+import { shortName } from '../format';
 import { computeScore, other } from '../../engine/score';
 import { deleteRecord, newId, pointsForMatch, saveRecord } from '../../storage/db';
 import {
@@ -237,14 +238,14 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
         <>
           <div className="serve-status">
             <span>
-              <strong>{name(server)}</strong> serving
+              <strong>{shortName(name(server))}</strong> serving
             </span>
             <span className={`serve-no ${serveNo === 2 && !rally ? 'second' : ''}`}>
               {rally ? 'Rally' : serveNo === 1 ? '1st serve' : '2nd serve'}
             </span>
             <span className="muted">
-              {score.side === 'deuce' ? 'Deuce court' : 'Ad court'}
-              {score.isMatchTiebreak ? ' · Match tiebreak' : score.inTiebreak ? ' · Tiebreak' : ''}
+              {score.side === 'deuce' ? 'Deuce' : 'Ad'}
+              {score.isMatchTiebreak ? ' · MTB' : score.inTiebreak ? ' · TB' : ''}
             </span>
           </div>
 
