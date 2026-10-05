@@ -14,7 +14,7 @@
 ## Current Checkpoint
 
 - **Status (2026-10-03):** All work committed, pushed and deployed on `dev/build-match-tracker` (latest `37d19f7`; production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page (4-button point ending), scoring engine, point-by-point log, compact pinned score table with sync badge and "+" missed-point buttons, short player names, cloud sync (D1), match stats page. `main` is behind and not deployed.
-- **In progress:** multi-user accounts + login (step 33) implemented and tested locally, not yet committed. Next: `npm run db:migrate:remote`, commit, push, first admin login with the sync token, change password, create users.
+- **In progress:** multi-user accounts deployed (step 33, commit `babb5b3`, 2026-10-05). Remote migration `0003` applied to both DBs; admin password pre-set (PBKDF2 hash written directly to `users` in prod + preview). Next: log in as `admin` on each device, create user accounts, field-test sharing.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### How to resume (new session)
@@ -212,7 +212,7 @@ src/
 ### 2026-10-05
 31. Stats: per-section set filter. Each section (Summary, Serve location, Forehand / backhand, Rally winners, Shot type, Unforced errors) has its own row of multi-select set buttons ("Set 1", "Set 2", ..., "MTB" for a match tiebreak); none selected = all sets played. `PointContext` gains `set` (0-based) and `matchTiebreak`; helpers `setOptions(ctxs)` and `filterSets(ctxs, sets)` (+ test). Committed and pushed (deployed).
 32. **Milestone `v0.1.0`** (annotated tag): match setup, serve/rally entry, scoring engine, cloud sync, match stats with set filters. `dev/build-match-tracker` merged into `main` (fast-forward); `.vscode/mcp.json` committed, `*.tsbuildinfo` and `.vscode/settings.json` ignored.
-33. **Multi-user accounts + login** (not yet committed/deployed):
+33. **Multi-user accounts + login** (deployed 2026-10-05, `babb5b3`):
    - Decisions (asked user): admin creates accounts (no sign-up); no user-player link; admin shares a match with any user **view-only**; only admin manages custom rules; users can add + edit shared players but not delete; admin username `admin`.
    - D1 migration `0003_users.sql`: `users` (username unique NOCASE, role admin/user, PBKDF2 `password_hash`, `disabled_at`, `failed_logins`, `locked_until`), `sessions` (SHA-256 of token, 180-day expiry), `match_access` (match_id, user_id, revoked_at, synced_at); seeds user `admin` (id `admin`, no password); `matches.owner_id` (existing -> `admin`), `points.match_id` (backfilled from JSON).
    - Admin bootstrap: the first `admin` login uses the existing `API_TOKEN` secret as password (stored as the password hash on first login); then change it in Settings.
@@ -221,7 +221,7 @@ src/
    - Client: `src/storage/session.ts` (session in Dexie meta, `login`/`logout`/`api`); app is gated by `LoginPage`; switching account wipes local data (confirm if unsynced changes); devices from before accounts are treated as admin's. Logout wipes local data. 401 during sync drops the session but keeps data. `src/ui/user.ts` (`UserContext`, `useUser`, `isAdmin`, `canEditMatch`).
    - UI: Settings = account, sync now, change password, log out, "Manage users" (admin -> `#/users`, `UsersPage`). Matches list: own matches + "Shared with me" (view only, "by <owner>"); admin sees all with owner. Match page: shared -> read-only score + details + stats; admin -> "Shared with" user chips in Match details + Delete. Delete buttons (match, player) admin-only; rules: "+ New"/edit/duplicate admin-only.
    - Verified locally (wrangler dev + Playwright): login/lockout msg, admin create users, non-admin 403 on admin API, rejected delete/rule writes, share -> visible to user, revoke -> removed, view-only page, admin deletion.
-   - **Deploy steps:** `npm run db:migrate:remote` (both DBs) **before** pushing; then push. Every device then shows the login page: log in as `admin` with the sync token, change the password, create users in Settings -> Manage users. Optionally later remove the `API_TOKEN` secret (only used for that first admin login).
+   - **Deploy done:** `npm run db:migrate:remote` (both DBs), admin password hash set directly via `wrangler d1 execute` (prod `DB` + `PREVIEW_DB` with `--config wrangler.preview-migrations.jsonc`), then pushed. To reset a forgotten admin password: `UPDATE users SET password_hash = NULL, failed_logins = 0, locked_until = NULL WHERE username = 'admin'` -> next login accepts the `API_TOKEN` secret.
 
 ## Open Questions / TODO
 
