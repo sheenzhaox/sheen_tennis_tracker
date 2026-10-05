@@ -9,10 +9,26 @@ import NewMatchPage from './pages/NewMatchPage';
 import MatchPage from './pages/MatchPage';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
+import LoginPage from './pages/LoginPage';
+import UsersPage from './pages/UsersPage';
+import { useSession } from './hooks';
+import { isAdmin, UserContext, useUser } from './user';
 
 const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value) ? value : null);
 
 export default function App() {
+  const session = useSession();
+  if (session === undefined) return null;
+  if (!session) return <LoginPage />;
+  return (
+    <UserContext value={session.user}>
+      <Routes />
+    </UserContext>
+  );
+}
+
+function Routes() {
+  const user = useUser();
   const { segments, query } = useRoute();
   const [section, rawId, action] = segments;
   const id = rawId ? decodeURIComponent(rawId) : undefined;
@@ -29,6 +45,8 @@ export default function App() {
       return id ? <MatchPage id={id} /> : <MatchesPage />;
     case 'settings':
       return <SettingsPage />;
+    case 'users':
+      return isAdmin(user) ? <UsersPage /> : <HomePage />;
     default:
       return <HomePage />;
   }

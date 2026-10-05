@@ -5,6 +5,7 @@ import { describeRules } from '../../model/rules';
 import type { Match, Side } from '../../model/types';
 import { navigate } from '../router';
 import { formatMatchDay, surfaceLabel } from '../format';
+import { isAdmin, useUser } from '../user';
 
 interface Props {
   match: Match;
@@ -14,6 +15,7 @@ interface Props {
 
 /** Step 2 of a match: choose the first server and record the start time. */
 export default function StartMatchPage({ match, nameA, nameB }: Props) {
+  const user = useUser();
   const [firstServer, setFirstServer] = useState<Side | null>(match.firstServer ?? null);
   const info = [match.event, match.round, match.venue].filter(Boolean).join(' · ');
 
@@ -71,9 +73,11 @@ export default function StartMatchPage({ match, nameA, nameB }: Props) {
         <button className="btn btn-primary btn-big start-btn" type="button" disabled={!firstServer} onClick={() => void start()}>
           Start match
         </button>
-        <button className="btn btn-danger" type="button" onClick={() => void remove()}>
-          Delete match
-        </button>
+        {isAdmin(user) && (
+          <button className="btn btn-danger" type="button" onClick={() => void remove()}>
+            Delete match
+          </button>
+        )}
       </main>
     </>
   );

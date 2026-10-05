@@ -32,10 +32,8 @@ import {
 
 function shortSync(s: SyncState, pending: number): string {
   switch (s.status) {
-    case 'no-token':
-      return 'Sync off';
-    case 'unauthorized':
-      return 'Sync token rejected';
+    case 'signed-out':
+      return 'Signed out';
     case 'offline':
       return `Offline · ${pending} pending`;
     case 'syncing':
@@ -48,7 +46,7 @@ function shortSync(s: SyncState, pending: number): string {
 }
 
 function syncTone(s: SyncState, pending: number): 'ok' | 'warn' | 'bad' {
-  if (s.status === 'unauthorized' || s.status === 'error' || s.status === 'no-token') return 'bad';
+  if (s.status === 'error' || s.status === 'signed-out') return 'bad';
   if (s.status === 'offline' || pending > 0) return 'warn';
   return 'ok';
 }

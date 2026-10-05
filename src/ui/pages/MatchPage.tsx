@@ -2,15 +2,36 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
 import PointLog from '../components/PointLog';
+import ScoreTable from '../components/ScoreTable';
+import MatchAccess from '../components/MatchAccess';
 import StartMatchPage from './StartMatchPage';
 import MatchTracker from './MatchTracker';
-import { db, deleteRecord, isLive } from '../../storage/db';
+import { db, deleteRecord, isLive, pointsForMatch } from '../../storage/db';
+import { computeScore } from '../../engine/score';
 import { describeRules } from '../../model/rules';
+import type { Match } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
 import { formatMatchDay, formatTime, shortName, surfaceLabel } from '../format';
+import { canEditMatch, isAdmin, useUser } from '../user';
+
+function ReadOnlyScore({ match, nameA, nameB }: { match: Match; nameA: string; nameB: string }) {
+  const points = useLiveQuery(() => pointsForMatch(match.id), [match.id]);
+  if (!points) return null;
+  const score = computeScore(match.rules, match.firstServer ?? 'A', points.map((p) => p.winner));
+  return (
+    <section>
+      <p className="muted">
+        View only · recorded by {match.ownerName ?? 'unknown'}
+        {match.status === 'scheduled' ? ' · not started' : ''}
+      </p>
+      <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
+    </section>
+  );
+}
 
 export default function MatchPage({ id }: { id: string }) {
+  const user = useUser();
   const match = useLiveQuery(async () => {
     const m = await db.matches.get(id);
     return isLive(m) ? m : null;
@@ -32,7 +53,8 @@ export default function MatchPage({ id }: { id: string }) {
 
   const a = names.get(match.playerAId) ?? 'Player A';
   const b = names.get(match.playerBId) ?? 'Player B';
-  if (match.status === 'scheduled') return <StartMatchPage match={match} nameA={a} nameB={b} />;
+  const editable = canEditMatch(user, match);
+  if (match.status === 'scheduled' && editable) return <StartMatchPage match={match} nameA={a} nameB={b} />;
   const info = [match.event, match.round, match.venue].filter(Boolean).join(' · ');
 
   async function remove() {
@@ -45,7 +67,7 @@ export default function MatchPage({ id }: { id: string }) {
     <>
       <Header title={`${shortName(a)} vs ${shortName(b)}`} back="/match" action={<a href={`#/match/${id}/stats`}>Stats</a>} />
       <main className="page">
-        <MatchTracker match={match} nameA={a} nameB={b} />
+        {editable ? <MatchTracker match={match} nameA={a} nameB={b} /> : <ReadOnlyScore match={match} nameA={a} nameB={b} />}
         <details className="match-details" onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>
           <summary>Match details</summary>
           <p>
@@ -66,9 +88,12 @@ export default function MatchPage({ id }: { id: string }) {
           </p>
           <h2>Point by point</h2>
           {detailsOpen && <PointLog match={match} nameA={a} nameB={b} />}
-          <button className="btn btn-danger" type="button" onClick={remove}>
-            Delete match
-          </button>
+          {isAdmin(user) && detailsOpen && <MatchAccess match={match} />}
+          {isAdmin(user) && (
+            <button className="btn btn-danger" type="button" onClick={remove}>
+              Delete match
+            </button>
+          )}
         </details>
       </main>
     </>

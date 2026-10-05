@@ -78,6 +78,9 @@ export interface Match extends Syncable {
   finishedAt?: number;
   createdAt?: number;
   updatedAt: number;
+  /** Set by the server: the user who recorded the match. Unset = created on this device, not synced yet. */
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export type ServeResult = 'ace' | 'fault' | 'in' | 'return_winner' | 'return_error';

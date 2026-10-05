@@ -14,14 +14,14 @@
 ## Current Checkpoint
 
 - **Status (2026-10-03):** All work committed, pushed and deployed on `dev/build-match-tracker` (latest `37d19f7`; production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page (4-button point ending), scoring engine, point-by-point log, compact pinned score table with sync badge and "+" missed-point buttons, short player names, cloud sync (D1), match stats page. `main` is behind and not deployed.
-- **In progress:** field-test feedback fixes (steps 23-26 done on 2026-10-03). Second field test (2 sets, match `c2d6171f-a8e8-4255-9e58-3c6b9aeb8cfe`) worked fine. Next: wait for new feedback, or pick from "Future Implementation".
+- **In progress:** multi-user accounts + login (step 33) implemented and tested locally, not yet committed. Next: `npm run db:migrate:remote`, commit, push, first admin login with the sync token, change password, create users.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### How to resume (new session)
 1. Open the folder in VS Code; `git checkout dev/build-match-tracker` and `git pull`.
 2. Ask Copilot: "Read workflow.md and resume from the latest checkpoint."
 3. In each new terminal: `$env:NODE_OPTIONS='--use-system-ca'` (company TLS inspection) before `npx wrangler ...`. Check login with `npx wrangler whoami`.
-4. Local dev: `npm install` (if needed) -> `npm run build` -> `npm run dev:api` (terminal 1) -> `npm run dev` (terminal 2) -> http://localhost:5173 (Settings token: `dev-token`).
+4. Local dev: `npm install` (if needed) -> `npm run build` -> `npm run dev:api` (terminal 1) -> `npm run dev` (terminal 2) -> http://localhost:5173 (log in as `admin`; first local login password = `dev-token`).
 5. Deploy = commit + push to `dev/build-match-tracker`. If a change adds a table/column: create `migrations/000N_*.sql` and run `npm run db:migrate:remote` **before** pushing.
 6. Sync token is only in your password manager (Cloudflare can't show it). To rotate: `npx wrangler secret put API_TOKEN` + `npx wrangler preview base-config secret put API_TOKEN`, then re-enter in Settings on each device.
 
@@ -140,6 +140,7 @@ src/
 | 2026-10-01 | Two D1 DBs: prod `DB` at top level; preview DB bound as `DB` inside `previews` block (replaces earlier host-routing idea with `PROD_HOST`/`DB_PREVIEW`) | Official Workers Previews isolation; simpler Worker code |
 | 2026-10-01 | Stay on **Workers Free plan** | Since 2026-09-01 D1 free-tier overages make queries fail until midnight UTC (no charges). Usage here is tiny |
 | 2026-10-01 | Sync protocol: soft deletes (`deletedAt`), `dirty` flag, last-write-wins on `updatedAt`, server `synced_at` cursor (60 s overlap) | D1 tables store key columns + JSON `data` |
+| 2026-10-05 | **Multi-user: username/password accounts with server sessions** (replaces the shared sync token) | Matches owned per user, players shared, rules admin-managed, admin can view/delete everything and share matches view-only. Bearer session token in IndexedDB keeps the app offline-first |
 
 ## Step Log
 
@@ -211,6 +212,16 @@ src/
 ### 2026-10-05
 31. Stats: per-section set filter. Each section (Summary, Serve location, Forehand / backhand, Rally winners, Shot type, Unforced errors) has its own row of multi-select set buttons ("Set 1", "Set 2", ..., "MTB" for a match tiebreak); none selected = all sets played. `PointContext` gains `set` (0-based) and `matchTiebreak`; helpers `setOptions(ctxs)` and `filterSets(ctxs, sets)` (+ test). Committed and pushed (deployed).
 32. **Milestone `v0.1.0`** (annotated tag): match setup, serve/rally entry, scoring engine, cloud sync, match stats with set filters. `dev/build-match-tracker` merged into `main` (fast-forward); `.vscode/mcp.json` committed, `*.tsbuildinfo` and `.vscode/settings.json` ignored.
+33. **Multi-user accounts + login** (not yet committed/deployed):
+   - Decisions (asked user): admin creates accounts (no sign-up); no user-player link; admin shares a match with any user **view-only**; only admin manages custom rules; users can add + edit shared players but not delete; admin username `admin`.
+   - D1 migration `0003_users.sql`: `users` (username unique NOCASE, role admin/user, PBKDF2 `password_hash`, `disabled_at`, `failed_logins`, `locked_until`), `sessions` (SHA-256 of token, 180-day expiry), `match_access` (match_id, user_id, revoked_at, synced_at); seeds user `admin` (id `admin`, no password); `matches.owner_id` (existing -> `admin`), `points.match_id` (backfilled from JSON).
+   - Admin bootstrap: the first `admin` login uses the existing `API_TOKEN` secret as password (stored as the password hash on first login); then change it in Settings.
+   - Worker split: `worker/http.ts` (Env, json, validators), `auth.ts` (PBKDF2 100k, login with 5-try / 15-min lockout, logout, change password -> signs out other devices), `admin.ts` (list/create/update users: reset password, role, disable; get/set match access), `sync.ts`, `index.ts` (routes). Endpoints: `POST /api/login`, `/api/logout`, `/api/password`, `GET /api/me`, `POST /api/sync`; admin: `GET/POST /api/users`, `PATCH /api/users/:id`, `GET/PUT /api/matches/:id/access`.
+   - Sync permissions (server-enforced): non-admin can't delete anything, can't write rule sets, can only write own matches and their points; owner set by the server. Refused records come back in `rejected` with the server copy (client rolls back; none = remove locally). Pull is filtered: admin all; users own + shared matches/points. Revoked shares come back in `revoked` (client removes match + points). Granting access bumps `synced_at` of the match + points so they're re-sent. Pull adds `ownerId` / `ownerName` to matches.
+   - Client: `src/storage/session.ts` (session in Dexie meta, `login`/`logout`/`api`); app is gated by `LoginPage`; switching account wipes local data (confirm if unsynced changes); devices from before accounts are treated as admin's. Logout wipes local data. 401 during sync drops the session but keeps data. `src/ui/user.ts` (`UserContext`, `useUser`, `isAdmin`, `canEditMatch`).
+   - UI: Settings = account, sync now, change password, log out, "Manage users" (admin -> `#/users`, `UsersPage`). Matches list: own matches + "Shared with me" (view only, "by <owner>"); admin sees all with owner. Match page: shared -> read-only score + details + stats; admin -> "Shared with" user chips in Match details + Delete. Delete buttons (match, player) admin-only; rules: "+ New"/edit/duplicate admin-only.
+   - Verified locally (wrangler dev + Playwright): login/lockout msg, admin create users, non-admin 403 on admin API, rejected delete/rule writes, share -> visible to user, revoke -> removed, view-only page, admin deletion.
+   - **Deploy steps:** `npm run db:migrate:remote` (both DBs) **before** pushing; then push. Every device then shows the login page: log in as `admin` with the sync token, change the password, create users in Settings -> Manage users. Optionally later remove the `API_TOKEN` secret (only used for that first admin login).
 
 ## Open Questions / TODO
 

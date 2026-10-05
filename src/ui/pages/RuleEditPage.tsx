@@ -5,6 +5,7 @@ import { db, deleteRecord, isLive, newId, saveRecord } from '../../storage/db';
 import { BUILT_IN_RULE_SETS, DEFAULT_RULES, describeRules, validateRules } from '../../model/rules';
 import type { FinalSetFormat, RuleSet, Rules } from '../../model/types';
 import { navigate } from '../router';
+import { isAdmin, useUser } from '../user';
 
 interface Props {
   id: string;
@@ -19,23 +20,24 @@ async function findRuleSet(id: string): Promise<RuleSet | null> {
 }
 
 export default function RuleEditPage({ id, copyFrom }: Props) {
+  const admin = isAdmin(useUser());
   const isNew = id === 'new';
   const [newRuleId] = useState(newId);
   const source = useLiveQuery(() => findRuleSet(isNew ? (copyFrom ?? '') : id), [id, copyFrom]);
 
   if (source === undefined) return null;
-  if (!isNew && source === null) {
+  if ((!isNew && source === null) || (isNew && !admin)) {
     return (
       <>
         <Header title="Rules" back="/rules" />
         <main className="page">
-          <p>Rule set not found.</p>
+          <p>{isNew ? 'Only the admin can create rules.' : 'Rule set not found.'}</p>
         </main>
       </>
     );
   }
 
-  if (!isNew && source?.builtIn) return <BuiltInView ruleSet={source} />;
+  if (!isNew && (source?.builtIn || !admin)) return <ReadOnlyView ruleSet={source!} canDuplicate={admin} />;
 
   const initial: RuleSet = isNew
     ? {
@@ -48,16 +50,22 @@ export default function RuleEditPage({ id, copyFrom }: Props) {
   return <RuleForm key={initial.id} initial={initial} isNew={isNew} />;
 }
 
-function BuiltInView({ ruleSet }: { ruleSet: RuleSet }) {
+function ReadOnlyView({ ruleSet, canDuplicate }: { ruleSet: RuleSet; canDuplicate: boolean }) {
   return (
     <>
       <Header title={ruleSet.name} back="/rules" />
       <main className="page">
         <p>{describeRules(ruleSet.rules)}</p>
-        <p className="muted">Standard rule sets can't be edited. Duplicate to customise.</p>
-        <a className="btn btn-primary" href={`#/rules/new?from=${encodeURIComponent(ruleSet.id)}`}>
-          Duplicate
-        </a>
+        {canDuplicate ? (
+          <>
+            <p className="muted">Standard rule sets can't be edited. Duplicate to customise.</p>
+            <a className="btn btn-primary" href={`#/rules/new?from=${encodeURIComponent(ruleSet.id)}`}>
+              Duplicate
+            </a>
+          </>
+        ) : (
+          <p className="muted">Rules are managed by the admin.</p>
+        )}
       </main>
     </>
   );

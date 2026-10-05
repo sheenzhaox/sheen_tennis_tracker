@@ -6,6 +6,7 @@ import type { Backhand, Handedness, Player } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
 import { formatMatchDay } from '../format';
+import { isAdmin, useUser } from '../user';
 
 interface Props {
   id: string;
@@ -38,6 +39,7 @@ export default function PlayerEditPage({ id, returnTo }: Props) {
 }
 
 function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: string | null }) {
+  const user = useUser();
   const [name, setName] = useState(player?.name ?? '');
   const [handedness, setHandedness] = useState<Handedness | ''>(player?.handedness ?? '');
   const [backhand, setBackhand] = useState<Backhand | ''>(player?.backhand ?? '');
@@ -119,7 +121,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
           <button className="btn btn-primary" type="submit">
             Save
           </button>
-          {player && (
+          {player && isAdmin(user) && (
             <button className="btn btn-danger" type="button" onClick={remove}>
               Delete player
             </button>

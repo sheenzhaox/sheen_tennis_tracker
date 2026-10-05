@@ -639,6 +639,26 @@ legend {
   padding: 0 0.4rem;
 }
 
+/* Admin: users and match access */
+.user-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.user-actions .btn {
+  width: auto;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
 /* Keep the last content above the docked score table. */
 .page:has(.score-dock) {
   padding-bottom: 7.5rem;

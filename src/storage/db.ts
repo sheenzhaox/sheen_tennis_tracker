@@ -64,6 +64,18 @@ export async function deleteRecord(table: SyncTable, id: string): Promise<void> 
 
 export const isLive = <T extends { deletedAt?: number }>(r: T | undefined): r is T => !!r && !r.deletedAt;
 
+export async function countDirty(): Promise<number> {
+  const counts = await Promise.all(SYNC_TABLES.map((t) => db.table(t).where('dirty').equals(1).count()));
+  return counts.reduce((a, b) => a + b, 0);
+}
+
+/** Wipes all synced data and settings on this device (used when switching account). */
+export async function clearLocalData(): Promise<void> {
+  await db.transaction('rw', [...SYNC_TABLES.map((t) => db.table(t)), db.meta], async () => {
+    await Promise.all([...SYNC_TABLES.map((t) => db.table(t).clear()), db.meta.clear()]);
+  });
+}
+
 export async function matchesForPlayer(playerId: string): Promise<Match[]> {
   const matches = await db.matches
     .where('playerAId')

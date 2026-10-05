@@ -2,19 +2,21 @@ import Header from '../components/Header';
 import { useAllRuleSets } from '../hooks';
 import { describeRules } from '../../model/rules';
 import type { RuleSet } from '../../model/types';
+import { isAdmin, useUser } from '../user';
 
 export default function RulesPage() {
+  const admin = isAdmin(useUser());
   const ruleSets = useAllRuleSets();
   const builtIn = ruleSets.filter((r) => r.builtIn);
   const custom = ruleSets.filter((r) => !r.builtIn);
 
   return (
     <>
-      <Header title="Rules" back="/" action={<a href="#/rules/new">+ New</a>} />
+      <Header title="Rules" back="/" action={admin ? <a href="#/rules/new">+ New</a> : undefined} />
       <main className="page">
-        <h2>My rules</h2>
+        <h2>Custom rules</h2>
         {custom.length === 0 ? (
-          <p className="muted">No custom rules yet. Create one or duplicate a standard rule set.</p>
+          <p className="muted">{admin ? 'No custom rules yet. Create one or duplicate a standard rule set.' : 'No custom rules yet.'}</p>
         ) : (
           <RuleList items={custom} />
         )}

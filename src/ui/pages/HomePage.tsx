@@ -2,8 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../storage/db';
 import { usePendingCount, useSyncState } from '../hooks';
 import { describeSync } from './SettingsPage';
+import { canEditMatch, useUser } from '../user';
 
 export default function HomePage() {
+  const user = useUser();
   const sync = useSyncState();
   const pending = usePendingCount();
   const inProgress =
@@ -12,9 +14,9 @@ export default function HomePage() {
         db.matches
           .where('status')
           .equals('in_progress')
-          .filter((m) => !m.deletedAt)
+          .filter((m) => !m.deletedAt && canEditMatch(user, m))
           .count(),
-      [],
+      [user],
     ) ?? 0;
 
   return (
@@ -35,7 +37,7 @@ export default function HomePage() {
         </a>
       </nav>
       <a className="home-sync muted" href="#/settings">
-        {describeSync(sync, pending)} · Settings
+        {user.username} · {describeSync(sync, pending)} · Settings
       </a>
     </main>
   );

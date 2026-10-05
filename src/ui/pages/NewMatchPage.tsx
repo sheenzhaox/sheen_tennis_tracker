@@ -7,11 +7,13 @@ import { SURFACES, type Match, type Player, type Surface } from '../../model/typ
 import { navigate } from '../router';
 import { useAllRuleSets, usePlayers } from '../hooks';
 import { todayIso } from '../format';
+import { canEditMatch, useUser } from '../user';
 
 const NEW_PLAYER = '__new__';
 
 /** Step 1 of a match: setup. Used for new matches and for editing a match that hasn't started. */
 export default function NewMatchPage({ id }: { id?: string }) {
+  const user = useUser();
   const match = useLiveQuery(async () => {
     if (!id) return null;
     const m = await db.matches.get(id);
@@ -19,12 +21,18 @@ export default function NewMatchPage({ id }: { id?: string }) {
   }, [id]);
 
   if (id && match === undefined) return null;
-  if (id && (!match || match.status !== 'scheduled')) {
+  if (id && (!match || match.status !== 'scheduled' || !canEditMatch(user, match))) {
     return (
       <>
         <Header title="Match setup" back={id ? `/match/${id}` : '/match'} />
         <main className="page">
-          <p>{match ? 'This match has already started; its setup can no longer be changed.' : 'Match not found.'}</p>
+          <p>
+            {!match
+              ? 'Match not found.'
+              : !canEditMatch(user, match)
+                ? 'This match is view only.'
+                : 'This match has already started; its setup can no longer be changed.'}
+          </p>
         </main>
       </>
     );
@@ -33,6 +41,7 @@ export default function NewMatchPage({ id }: { id?: string }) {
 }
 
 function SetupForm({ existing }: { existing: Match | null }) {
+  const user = useUser();
   const players = usePlayers() ?? [];
   const ruleSets = useAllRuleSets();
   const [date, setDate] = useState(existing?.date ?? todayIso());
@@ -75,6 +84,8 @@ function SetupForm({ existing }: { existing: Match | null }) {
       status: 'scheduled',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
+      ownerId: existing?.ownerId ?? user.id,
+      ownerName: existing?.ownerName ?? user.username,
     });
     navigate(`/match/${id}`);
   }

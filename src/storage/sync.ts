@@ -1,6 +1,7 @@
 import { db, onLocalChange, SYNC_TABLES, type SyncTable } from './db';
+import { expireSession, getSession } from './session';
 
-export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'no-token' | 'unauthorized' | 'error';
+export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'signed-out' | 'error';
 
 export interface SyncState {
   status: SyncStatus;
@@ -23,6 +24,15 @@ interface LocalRecord {
   dirty?: 0 | 1;
 }
 
+interface SyncResponse {
+  cursor: number;
+  records: RemoteRecord[];
+  /** Changes the server refused (no permission), with the server's copy to roll back to (null = not visible). */
+  rejected: { kind: SyncTable; id: string; server: RemoteRecord | null }[];
+  /** Match ids whose shared access was removed. */
+  revoked: string[];
+}
+
 const CHUNK_SIZE = 200;
 const DEBOUNCE_MS = 1500;
 const INTERVAL_MS = 60_000;
@@ -39,16 +49,6 @@ export function subscribeSync(fn: (s: SyncState) => void): () => void {
   subscribers.add(fn);
   fn(state);
   return () => subscribers.delete(fn);
-}
-
-export async function getToken(): Promise<string | undefined> {
-  return (await db.meta.get('apiToken'))?.value as string | undefined;
-}
-
-export async function setToken(token: string): Promise<void> {
-  if (token) await db.meta.put({ key: 'apiToken', value: token });
-  else await db.meta.delete('apiToken');
-  await syncNow();
 }
 
 let running: Promise<void> | null = null;
@@ -74,26 +74,35 @@ function toRemote(kind: SyncTable, r: LocalRecord & Record<string, unknown>): Re
   return { kind, id: r.id, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? null, data };
 }
 
-async function applyResponse(pushed: RemoteRecord[], incoming: RemoteRecord[]) {
+async function applyResponse(pushed: RemoteRecord[], res: SyncResponse) {
+  const put = (r: RemoteRecord) =>
+    db.table(r.kind).put({ ...r.data, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? undefined, dirty: 0 });
   await db.transaction('rw', SYNC_TABLES.map((t) => db.table(t)), async () => {
     for (const p of pushed) {
       const local = (await db.table(p.kind).get(p.id)) as LocalRecord | undefined;
       // Only clear the flag if the record wasn't edited again while the request was in flight.
       if (local && local.updatedAt === p.updatedAt) await db.table(p.kind).update(p.id, { dirty: 0 });
     }
-    for (const r of incoming) {
+    for (const r of res.records) {
       if (!SYNC_TABLES.includes(r.kind)) continue;
       const local = (await db.table(r.kind).get(r.id)) as LocalRecord | undefined;
-      if (!local || r.updatedAt > local.updatedAt) {
-        await db.table(r.kind).put({ ...r.data, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? undefined, dirty: 0 });
-      }
+      if (!local || r.updatedAt > local.updatedAt) await put(r);
+    }
+    for (const r of res.rejected ?? []) {
+      if (!SYNC_TABLES.includes(r.kind)) continue;
+      if (r.server) await put(r.server);
+      else await db.table(r.kind).delete(r.id);
+    }
+    for (const matchId of res.revoked ?? []) {
+      await db.matches.delete(matchId);
+      await db.points.where('matchId').equals(matchId).delete();
     }
   });
 }
 
 async function doSync(): Promise<void> {
-  const token = await getToken();
-  if (!token) return setState({ status: 'no-token' });
+  const session = await getSession();
+  if (!session) return setState({ status: 'signed-out' });
   if (!navigator.onLine) return setState({ ...state, status: 'offline' });
   setState({ ...state, status: 'syncing' });
 
@@ -111,13 +120,16 @@ async function doSync(): Promise<void> {
       offset += CHUNK_SIZE;
       const res = await fetch('/api/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
         body: JSON.stringify({ since, records: chunk }),
       });
-      if (res.status === 401) return setState({ status: 'unauthorized' });
+      if (res.status === 401) {
+        await expireSession();
+        return setState({ status: 'signed-out' });
+      }
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const body = (await res.json()) as { cursor: number; records: RemoteRecord[] };
-      await applyResponse(chunk, body.records);
+      const body = (await res.json()) as SyncResponse;
+      await applyResponse(chunk, body);
       since = body.cursor;
       await db.meta.put({ key: 'cursor', value: since });
     } while (offset < dirty.length);

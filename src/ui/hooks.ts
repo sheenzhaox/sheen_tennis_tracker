@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../storage/db';
+import { countDirty, db } from '../storage/db';
 import { subscribeSync, type SyncState } from '../storage/sync';
+import type { Session } from '../storage/session';
 import { BUILT_IN_RULE_SETS } from '../model/rules';
 import type { Player, RuleSet } from '../model/types';
 
@@ -27,15 +28,10 @@ export function useSyncState(): SyncState {
 }
 
 export function usePendingCount(): number {
-  return (
-    useLiveQuery(async () => {
-      const counts = await Promise.all([
-        db.players.where('dirty').equals(1).count(),
-        db.ruleSets.where('dirty').equals(1).count(),
-        db.matches.where('dirty').equals(1).count(),
-        db.points.where('dirty').equals(1).count(),
-      ]);
-      return counts.reduce((a, b) => a + b, 0);
-    }, []) ?? 0
-  );
+  return useLiveQuery(countDirty, []) ?? 0;
+}
+
+/** undefined while loading, null when signed out. */
+export function useSession(): Session | null | undefined {
+  return useLiveQuery(async () => ((await db.meta.get('session'))?.value as Session | undefined) ?? null, []);
 }
