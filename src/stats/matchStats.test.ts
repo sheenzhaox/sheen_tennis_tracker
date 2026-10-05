@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   errorTypeStats,
+  filterSets,
   pointContexts,
   rallyWinnerStats,
   serveLocationStats,
+  setOptions,
   shotTypeStats,
   strokeStats,
   summary,
@@ -130,5 +132,21 @@ describe('match stats', () => {
     expect(errorTypeStats(ctxs, 'backhand', 'net').B.long).toBe(0);
     // Double fault: no stroke filter, position defaults to baseline.
     expect(errorTypeStats(ctxs, 'all', 'baseline').A.net).toBe(1);
+  });
+
+  it('lists played sets incl. match tiebreak and filters by set', () => {
+    const mtb: Match = { ...match, rules: { ...DEFAULT_RULES, finalSet: 'matchTiebreak' } };
+    // A wins set 1 6-0, B wins set 2 6-0, then 3 match tiebreak points.
+    const winners: Side[] = [...Array(24).fill('A'), ...Array(24).fill('B'), 'A', 'B', 'A'];
+    const pts = winners.map((w) => point('A', w, 'unrecorded', []));
+    const c = pointContexts(mtb, pts);
+    expect(setOptions(c)).toEqual([
+      { index: 0, label: 'Set 1' },
+      { index: 1, label: 'Set 2' },
+      { index: 2, label: 'MTB' },
+    ]);
+    expect(filterSets(c, [])).toHaveLength(51);
+    expect(filterSets(c, [2])).toHaveLength(3);
+    expect(filterSets(c, [0, 2])).toHaveLength(27);
   });
 });

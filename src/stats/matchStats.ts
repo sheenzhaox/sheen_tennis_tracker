@@ -13,6 +13,9 @@ export interface PointContext {
   before: ScoreState;
   side: 'deuce' | 'ad';
   situations: Set<Situation>;
+  /** 0-based index of the set the point was played in. */
+  set: number;
+  matchTiebreak: boolean;
 }
 
 export type PerSide<T> = Record<Side, T>;
@@ -39,8 +42,30 @@ export function pointContexts(match: Match, points: Point[]): PointContext[] {
       before,
       side: before.side,
       situations: situationsOf(before, point.server, match.rules),
+      set: before.sets.length,
+      matchTiebreak: before.isMatchTiebreak,
     };
   });
+}
+
+export interface SetOption {
+  index: number;
+  label: string;
+}
+
+/** Sets with at least one point, labelled "Set N" or "MTB" for a match tiebreak. */
+export function setOptions(ctxs: PointContext[]): SetOption[] {
+  const out: SetOption[] = [];
+  for (const c of ctxs) {
+    if (out.some((o) => o.index === c.set)) continue;
+    out.push({ index: c.set, label: c.matchTiebreak ? 'MTB' : `Set ${c.set + 1}` });
+  }
+  return out;
+}
+
+/** Points in the selected sets; an empty selection keeps all points. */
+export function filterSets(ctxs: PointContext[], sets: number[]): PointContext[] {
+  return sets.length === 0 ? ctxs : ctxs.filter((c) => sets.includes(c.set));
 }
 
 /** Who hit the winner / made the unforced error that ended the point, if recorded. */

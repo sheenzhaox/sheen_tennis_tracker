@@ -5,14 +5,17 @@ import { db, isLive, pointsForMatch } from '../../storage/db';
 import { usePlayerNames } from '../hooks';
 import {
   errorTypeStats,
+  filterSets,
   pointContexts,
   rallyWinnerStats,
   serveLocationStats,
+  setOptions,
   shotTypeStats,
   strokeStats,
   summary,
   type GameFilter,
   type PositionFilter,
+  type SetOption,
   type SideFilter,
   type SituationFilter,
   type StrokeFilter,
@@ -68,6 +71,29 @@ function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
   );
 }
 
+/** Multi-select set switches; none selected = all sets. */
+function SetChips({ options, value, onChange }: { options: SetOption[]; value: number[]; onChange: (v: number[]) => void }) {
+  return (
+    <div className="chips">
+      {options.map((o) => {
+        const on = value.includes(o.index);
+        return (
+          <button
+            key={o.index}
+            type="button"
+            className={`chip ${on ? 'on' : ''}`}
+            onClick={() => onChange(on ? value.filter((i) => i !== o.index) : [...value, o.index])}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+type Section = 'summary' | 'serve' | 'stroke' | 'winners' | 'shots' | 'errors';
+
 export default function StatsPage({ id }: { id: string }) {
   const match = useLiveQuery(async () => {
     const m = await db.matches.get(id);
@@ -83,6 +109,7 @@ export default function StatsPage({ id }: { id: string }) {
   const [winnerStroke, setWinnerStroke] = useState<'forehand' | 'backhand'>('forehand');
   const [ueStroke, setUeStroke] = useState<StrokeFilter>('all');
   const [uePosition, setUePosition] = useState<PositionFilter>('all');
+  const [sets, setSets] = useState<Partial<Record<Section, number[]>>>({});
 
   if (match === undefined || points === undefined) return null;
   if (match === null) {
@@ -99,12 +126,16 @@ export default function StatsPage({ id }: { id: string }) {
   const a = names.get(match.playerAId) ?? 'Player A';
   const b = names.get(match.playerBId) ?? 'Player B';
   const ctxs = pointContexts(match, points);
-  const sum = summary(ctxs);
-  const loc = serveLocationStats(ctxs, server, side, situation);
-  const strokes = strokeStats(ctxs, strokePlayer, games);
-  const rw = rallyWinnerStats(ctxs, winnerStroke);
-  const shots = shotTypeStats(ctxs);
-  const errs = errorTypeStats(ctxs, ueStroke, uePosition);
+  const played = setOptions(ctxs);
+  const sel = (s: Section) => sets[s] ?? [];
+  const inSets = (s: Section) => filterSets(ctxs, sel(s));
+  const setChips = (s: Section) => <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
+  const sum = summary(inSets('summary'));
+  const loc = serveLocationStats(inSets('serve'), server, side, situation);
+  const strokes = strokeStats(inSets('stroke'), strokePlayer, games);
+  const rw = rallyWinnerStats(inSets('winners'), winnerStroke);
+  const shots = shotTypeStats(inSets('shots'));
+  const errs = errorTypeStats(inSets('errors'), ueStroke, uePosition);
   const both = (f: (s: Side) => ReactNode): ReactNode[] => [f('A'), f('B')];
   const locLabel = (v: string) => SERVE_LOCATIONS.find((l) => l.value === v)?.label ?? 'Not set';
 
@@ -115,9 +146,11 @@ export default function StatsPage({ id }: { id: string }) {
         <p className="muted">
           {a} vs {b} · {points.length} points
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
+          {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
 
         <h2>Summary</h2>
+        {setChips('summary')}
         <Table
           head={['', a, b]}
           rows={[
@@ -137,6 +170,7 @@ export default function StatsPage({ id }: { id: string }) {
         />
 
         <h2>Serve location</h2>
+        {setChips('serve')}
         <Chips value={server} onChange={setServer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />
         <Chips
           value={side}
@@ -172,6 +206,7 @@ export default function StatsPage({ id }: { id: string }) {
         </p>
 
         <h2>Forehand / backhand</h2>
+        {setChips('stroke')}
         <Chips value={strokePlayer} onChange={setStrokePlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />
         <div className="chips">
           {(['serve', 'return'] as const).map((g) => (
@@ -190,6 +225,7 @@ export default function StatsPage({ id }: { id: string }) {
         </p>
 
         <h2>Rally winners</h2>
+        {setChips('winners')}
         <Chips
           value={winnerStroke}
           onChange={setWinnerStroke}
@@ -203,6 +239,7 @@ export default function StatsPage({ id }: { id: string }) {
         <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; shot type not set counts as Topspin.</p>
 
         <h2>Shot type</h2>
+        {setChips('shots')}
         <Table
           head={['', `${a} W`, `${a} UE`, `${b} W`, `${b} UE`]}
           rows={[...SHOT_TYPES, { value: 'none' as const, label: 'Not set' }].map((t) => [
@@ -215,6 +252,7 @@ export default function StatsPage({ id }: { id: string }) {
         />
 
         <h2>Unforced errors</h2>
+        {setChips('errors')}
         <ToggleChips
           value={ueStroke}
           onChange={setUeStroke}

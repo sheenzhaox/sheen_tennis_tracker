@@ -208,6 +208,9 @@ src/
 29. Stats: "Rally winners" section (`rallyWinnerStats(ctxs, stroke)`): switch Forehand / Backhand; tables for both players by shot direction (not set -> Middle) and shot type (not set -> Topspin). Rally winners incl. forced errors; rallies with stroke not set are excluded.
 30. Stats: "Unforced errors" section now filterable (`errorTypeStats(ctxs, stroke, position)`): row 1 Forehand / Backhand toggle (none = all UE incl. DF and stroke not set), row 2 Baseline / Approach / Net toggle (none = all; position not set, DF and return errors count as Baseline). Shows error type (Net / Long / Wide / Not set) for both players. Replaced the old stroke / position / type tables (`errorBreakdown` removed).
 
+### 2026-10-05
+31. Stats: per-section set filter. Each section (Summary, Serve location, Forehand / backhand, Rally winners, Shot type, Unforced errors) has its own row of multi-select set buttons ("Set 1", "Set 2", ..., "MTB" for a match tiebreak); none selected = all sets played. `PointContext` gains `set` (0-based) and `matchTiebreak`; helpers `setOptions(ctxs)` and `filterSets(ctxs, sets)` (+ test). Committed and pushed (deployed).
+
 ## Open Questions / TODO
 
 - [x] Define project goal and core features
