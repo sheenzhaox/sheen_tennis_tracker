@@ -210,6 +210,7 @@ src/
 
 ### 2026-10-05
 31. Stats: per-section set filter. Each section (Summary, Serve location, Forehand / backhand, Rally winners, Shot type, Unforced errors) has its own row of multi-select set buttons ("Set 1", "Set 2", ..., "MTB" for a match tiebreak); none selected = all sets played. `PointContext` gains `set` (0-based) and `matchTiebreak`; helpers `setOptions(ctxs)` and `filterSets(ctxs, sets)` (+ test). Committed and pushed (deployed).
+32. **Milestone `v0.1.0`** (annotated tag): match setup, serve/rally entry, scoring engine, cloud sync, match stats with set filters. `dev/build-match-tracker` merged into `main` (fast-forward); `.vscode/mcp.json` committed, `*.tsbuildinfo` and `.vscode/settings.json` ignored.
 
 ## Open Questions / TODO
 
