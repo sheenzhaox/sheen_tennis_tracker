@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { useRoute } from './router';
 import HomePage from './pages/HomePage';
 import PlayersPage from './pages/PlayersPage';
@@ -14,10 +15,20 @@ import UsersPage from './pages/UsersPage';
 import { useSession } from './hooks';
 import { isAdmin, UserContext, useUser } from './user';
 
+const HelpPage = lazy(() => import('./pages/HelpPage'));
+
 const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value) ? value : null);
 
 export default function App() {
   const session = useSession();
+  const { segments } = useRoute();
+  if (segments[0] === 'help') {
+    return (
+      <Suspense fallback={<main className="page" role="status">Loading help...</main>}>
+        <HelpPage />
+      </Suspense>
+    );
+  }
   if (session === undefined) return null;
   if (!session) return <LoginPage />;
   return (

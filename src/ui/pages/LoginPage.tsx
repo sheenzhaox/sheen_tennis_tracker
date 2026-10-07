@@ -42,6 +42,9 @@ export default function LoginPage() {
           {busy ? 'Logging in...' : 'Log in'}
         </button>
       </form>
+      <a className="home-sync" href="#/help">
+        Help
+      </a>
     </main>
   );
 }

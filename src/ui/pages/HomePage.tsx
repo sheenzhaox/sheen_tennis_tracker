@@ -39,6 +39,9 @@ export default function HomePage() {
       <a className="home-sync muted" href="#/settings">
         {user.username} · {describeSync(sync, pending)} · Settings
       </a>
+      <a className="home-sync" href="#/help">
+        Help
+      </a>
     </main>
   );
 }
