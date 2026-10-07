@@ -149,6 +149,13 @@ export interface Point extends Syncable {
   updatedAt: number;
 }
 
+export interface PublicStats {
+  match: Match;
+  points: Point[];
+  nameA: string;
+  nameB: string;
+}
+
 export const SERVE_RESULTS: { value: ServeResult; label: string }[] = [
   { value: 'ace', label: 'Ace (Unreturnable)' },
   { value: 'fault', label: 'Fault' },

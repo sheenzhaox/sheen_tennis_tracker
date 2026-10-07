@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
+import StatsShare from '../components/StatsShare';
 import { db, isLive, pointsForMatch } from '../../storage/db';
 import { usePlayerNames } from '../hooks';
+import { canEditMatch, useUser } from '../user';
 import {
   errorTypeStats,
   filterSets,
@@ -20,7 +22,7 @@ import {
   type SituationFilter,
   type StrokeFilter,
 } from '../../stats/matchStats';
-import { SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, SHOT_TYPES, type Side } from '../../model/types';
+import { SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, SHOT_TYPES, type PublicStats, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
@@ -52,22 +54,24 @@ function ToggleChips<T extends string>({ value, options, onChange }: { value: T 
 
 function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
   return (
-    <table className="stats-table">
-      <thead>
-        <tr>
-          {head.map((h, i) => (
-            <th key={i}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            {r.map((c, j) => (j === 0 ? <th key={j}>{c}</th> : <td key={j}>{c}</td>))}
+    <div className="stats-table-scroll" tabIndex={0} role="region" aria-label="Statistics table">
+      <table className="stats-table">
+        <thead>
+          <tr>
+            {head.map((heading, index) => <th key={index}>{heading}</th>)}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {row.map((cell, columnIndex) => columnIndex === 0
+                ? <th key={columnIndex}>{cell}</th>
+                : <td key={columnIndex}>{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -95,12 +99,30 @@ function SetChips({ options, value, onChange }: { options: SetOption[]; value: n
 type Section = 'summary' | 'serve' | 'stroke' | 'winners' | 'shots' | 'errors';
 
 export default function StatsPage({ id }: { id: string }) {
+  const user = useUser();
   const match = useLiveQuery(async () => {
     const m = await db.matches.get(id);
     return isLive(m) ? m : null;
   }, [id]);
   const points = useLiveQuery(() => pointsForMatch(id), [id]);
   const names = usePlayerNames();
+  if (match === undefined || points === undefined) return null;
+  if (match === null) {
+    return (
+      <>
+        <Header title="Stats" back="/match" />
+        <main className="page"><p>Match not found.</p></main>
+      </>
+    );
+  }
+  return <StatsView
+    match={match} points={points}
+    nameA={names.get(match.playerAId) ?? 'Player A'} nameB={names.get(match.playerBId) ?? 'Player B'}
+    back={`/match/${id}`} sharing={canEditMatch(user, match) ? <StatsShare key={id} matchId={id} /> : undefined}
+  />;
+}
+
+export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing }: PublicStats & { back?: string; sharing?: ReactNode }) {
   const [server, setServer] = useState<Side>('A');
   const [side, setSide] = useState<SideFilter>('all');
   const [situation, setSituation] = useState<SituationFilter>('all');
@@ -111,20 +133,6 @@ export default function StatsPage({ id }: { id: string }) {
   const [uePosition, setUePosition] = useState<PositionFilter>('all');
   const [sets, setSets] = useState<Partial<Record<Section, number[]>>>({});
 
-  if (match === undefined || points === undefined) return null;
-  if (match === null) {
-    return (
-      <>
-        <Header title="Stats" back="/match" />
-        <main className="page">
-          <p>Match not found.</p>
-        </main>
-      </>
-    );
-  }
-
-  const a = names.get(match.playerAId) ?? 'Player A';
-  const b = names.get(match.playerBId) ?? 'Player B';
   const ctxs = pointContexts(match, points);
   const played = setOptions(ctxs);
   const sel = (s: Section) => sets[s] ?? [];
@@ -141,13 +149,14 @@ export default function StatsPage({ id }: { id: string }) {
 
   return (
     <>
-      <Header title="Stats" back={`/match/${id}`} />
+      <Header title="Stats" back={back} />
       <main className="page stats">
         <p className="muted">
           {a} vs {b} · {points.length} points
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
           {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
+        {sharing}
 
         <h2>Summary</h2>
         {setChips('summary')}

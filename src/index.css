@@ -125,6 +125,29 @@ h2 {
 }
 
 /* Home */
+.stats-share {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.stats-share .form {
+  margin-top: 1rem;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.share-actions .btn {
+  flex: 1 1 12rem;
+}
+
+.stats-share .btn svg {
+  vertical-align: middle;
+}
+
 .home {
   min-height: 100dvh;
   display: flex;
@@ -596,6 +619,10 @@ legend {
 .chip.on {
   background: var(--green);
   color: #fff;
+}
+
+.stats-table-scroll {
+  overflow-x: auto;
 }
 
 .stats-table {

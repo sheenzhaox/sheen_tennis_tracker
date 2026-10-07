@@ -13,12 +13,13 @@
 
 ## Current Checkpoint
 
-- **Status (2026-10-03):** All work committed, pushed and deployed on `dev/build-match-tracker` (latest `37d19f7`; production branch -> https://sheen-tennis-tracker.sheenzhaox.workers.dev). Done: match setup (2 steps), serve page (fault type, return details, Ace/Fault colours), rally page (4-button point ending), scoring engine, point-by-point log, compact pinned score table with sync badge and "+" missed-point buttons, short player names, cloud sync (D1), match stats page. `main` is behind and not deployed.
-- **In progress:** multi-user accounts deployed (step 33, commit `babb5b3`, 2026-10-05). Remote migration `0003` applied to both DBs; admin password pre-set (PBKDF2 hash written directly to `users` in prod + preview). Next: log in as `admin` on each device, create user accounts, field-test sharing.
+- **Previous deployment (2026-10-07):** Production on `dev/build-match-tracker` at `0c1bd8f` -> https://sheen-tennis-tracker.sheenzhaox.workers.dev. Match tracking, scoring, cloud sync, multi-user accounts, stats with set filters, phone setup Help, and point-log CSV export are deployed. `main` is behind and not deployed.
+- **Current release (2026-10-07):** public stats sharing (step 35), verified with the production build, 35 tests, and local Worker/D1/browser checks. Migration `0004_public_stats.sql` applied to both remote DBs before pushing. Deployment uses the production branch `dev/build-match-tracker`; check its latest Cloudflare build for the release commit. Next: field-test public stats links with coaches, account sharing, and phone install/offline behavior.
 - **Resume verified (2026-10-07):** clean checkout on `dev/build-match-tracker` at `77cfe3c`; `git pull --ff-only` already up to date. All 22 tests pass and `npm run build` succeeds (frontend + Worker type checks and PWA assets). Next remains device login, account creation, and sharing field tests; phone install/offline testing is still pending.
 - **Phone setup guide (2026-10-07):** added `PHONE_SETUP.md` with iPhone/Safari and Android/Chrome home-screen installation, account login, pre-match sync/offline checks, and unsynced-data precautions. Device field testing remains pending.
 - **In-app Help (2026-10-07):** added public `#/help`, linked from login and home, rendering `PHONE_SETUP.md` directly with `react-markdown` + `remark-gfm`. Help is lazy-loaded and precached with the PWA. Build and all 22 tests pass; browser checks confirm signed-out navigation, all guide sections/table rows, and no horizontal overflow at 320/390/1280px. Runtime dependency audit reports no vulnerabilities. Local preview: http://127.0.0.1:5173/#/help.
 - **Point-log CSV export (2026-10-07):** expanded Match details now ends its point-by-point log with an Export CSV button (disabled when empty, available for view-only matches). CSV includes match ID, player names, point number, score before the point (A-B), winner, ending, server, both serve descriptions, and rally details. Shared formatting keeps the display/export consistent; `csv-stringify` handles quoting, UTF-8 BOM, and spreadsheet-formula protection. Build and 5 focused tests pass. Isolated browser checks verified visibility, mobile layout, CSV contents, and download filename/request; the integrated browser did not expose a download-completion event, so saved-file behavior on phones remains to be field-tested.
+- **Public stats sharing (2026-10-07):** owners/admins can create, copy, replace, and revoke a link from Stats. Public `#/shared-stats/<random-token>` requires no login and reveals no real match ID. Only SHA-256 token hashes are stored in D1. Public views retain all stats filters but expose no private match notes, venue, owner data, IDs, or edit/share controls. Build and all 35 tests pass; real local Worker/D1 checks cover permissions, rotation, revocation, and deleted matches. Browser checks cover anonymous access, filters, create/copy/revoke, and 320/390/1280px layouts. Preview uses an isolated local DB at http://127.0.0.1:8788. Migration `0004` applied to production and preview via `npm run db:migrate:remote`; release uses commit + push to the production branch.
 - **Commands:** `npm run dev` (Vite, proxies `/api` to 8787), `npm run dev:api` (Worker + local D1; needs `npm run build` once and `.dev.vars` with `API_TOKEN=dev-token`), `npm run build`, `npm test`, `npm run db:migrate:local`, `npm run db:migrate:remote`, `npm run icons`.
 
 ### How to resume (new session)
@@ -49,6 +50,7 @@ Ideas kept for later (not started):
 2. **Persist the in-progress point draft** across reloads (currently a reload after a 1st-serve fault restarts the point).
 3. **Player-level stats across matches** (aggregate the per-match stats per player).
 4. **Stats export** (CSV / JSON per match) for external analysis.
+5. **Import CSV to match history** (import recorded matches from CSV files).
 - Housekeeping: optionally bring `main` up to date with `dev/build-match-tracker`.
 
 ## Feasibility Analysis (2026-10-01)
@@ -145,6 +147,7 @@ src/
 | 2026-10-01 | Stay on **Workers Free plan** | Since 2026-09-01 D1 free-tier overages make queries fail until midnight UTC (no charges). Usage here is tiny |
 | 2026-10-01 | Sync protocol: soft deletes (`deletedAt`), `dirty` flag, last-write-wins on `updatedAt`, server `synced_at` cursor (60 s overlap) | D1 tables store key columns + JSON `data` |
 | 2026-10-05 | **Multi-user: username/password accounts with server sessions** (replaces the shared sync token) | Matches owned per user, players shared, rules admin-managed, admin can view/delete everything and share matches view-only. Bearer session token in IndexedDB keeps the app offline-first |
+| 2026-10-07 | **Public read-only stats links for coaches without accounts** | Independent random 256-bit tokens, stored as SHA-256 hashes. Owners/admins create or revoke links; replacing a link invalidates the previous one. Public stats show only player names and scoring details, not private match metadata. |
 
 ## Step Log
 
@@ -226,6 +229,15 @@ src/
    - UI: Settings = account, sync now, change password, log out, "Manage users" (admin -> `#/users`, `UsersPage`). Matches list: own matches + "Shared with me" (view only, "by <owner>"); admin sees all with owner. Match page: shared -> read-only score + details + stats; admin -> "Shared with" user chips in Match details + Delete. Delete buttons (match, player) admin-only; rules: "+ New"/edit/duplicate admin-only.
    - Verified locally (wrangler dev + Playwright): login/lockout msg, admin create users, non-admin 403 on admin API, rejected delete/rule writes, share -> visible to user, revoke -> removed, view-only page, admin deletion.
    - **Deploy done:** `npm run db:migrate:remote` (both DBs), admin password hash set directly via `wrangler d1 execute` (prod `DB` + `PREVIEW_DB` with `--config wrangler.preview-migrations.jsonc`), then pushed. To reset a forgotten admin password: `UPDATE users SET password_hash = NULL, failed_logins = 0, locked_until = NULL WHERE username = 'admin'` -> next login accepts the `API_TOKEN` secret.
+
+### 2026-10-07
+34. Deployed phone setup guide, in-app Help, and point-log CSV export (`0c1bd8f`); added CSV import into match history to future tasks.
+35. Public stats sharing:
+   - Migration `0004_public_stats.sql`: `public_stats_links` keyed by match ID, with unique token hash and revocation timestamp.
+   - Authenticated owner/admin endpoints: `GET/POST/DELETE /api/matches/:id/stats-link`; creating a new link replaces the existing token. Only the hash is saved; the raw link is shown when generated, so returning to the page offers replacement or revocation.
+   - Unauthenticated `GET /api/public/stats/:token`: rejects invalid/revoked links and deleted matches, returns sanitized names/rules/points without internal identifiers or private metadata, uses `no-store` and no-index headers.
+   - `StatsView` reused by private Stats and public `PublicStatsPage`; owner/admin `StatsShare` has Create/Copy/Revoke controls. Wide tables scroll within their container on narrow phones.
+   - Verified: production build, 35 tests (including 8 link/security tests), isolated local migration and Worker/D1 lifecycle, browser anonymous access and filters, owner link controls, mobile/desktop layouts. Migration `0004` applied to both remote databases before release; no existing match data was changed by the migration.
 
 ## Open Questions / TODO
 

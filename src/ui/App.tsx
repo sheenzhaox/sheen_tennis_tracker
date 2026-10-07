@@ -16,12 +16,20 @@ import { useSession } from './hooks';
 import { isAdmin, UserContext, useUser } from './user';
 
 const HelpPage = lazy(() => import('./pages/HelpPage'));
+const PublicStatsPage = lazy(() => import('./pages/PublicStatsPage'));
 
 const safeReturn = (value: string | null) => (value && /^\/[\w/-]*$/.test(value) ? value : null);
 
 export default function App() {
   const session = useSession();
   const { segments } = useRoute();
+  if (segments[0] === 'shared-stats') {
+    return (
+      <Suspense fallback={<main className="page" role="status">Loading stats...</main>}>
+        <PublicStatsPage key={segments[1] ?? ''} token={segments[1] ?? ''} />
+      </Suspense>
+    );
+  }
   if (segments[0] === 'help') {
     return (
       <Suspense fallback={<main className="page" role="status">Loading help...</main>}>
