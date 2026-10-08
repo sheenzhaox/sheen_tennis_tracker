@@ -6,7 +6,7 @@ import type { Backhand, Handedness, Player } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
 import { formatMatchDay } from '../format';
-import { canEditPlayer, isAdmin, isListedPlayer, useUser } from '../user';
+import { canEditPlayer, canSelectPlayer, isAdmin, useUser } from '../user';
 
 interface Props {
   id: string;
@@ -20,7 +20,7 @@ export default function PlayerEditPage({ id, returnTo }: Props) {
     async () => {
       if (isNew) return null;
       const p = await db.players.get(id);
-      return isLive(p) && isListedPlayer(user, p) ? p : null;
+      return isLive(p) && canSelectPlayer(user, p) ? p : null;
     },
     [id, user.id],
   );

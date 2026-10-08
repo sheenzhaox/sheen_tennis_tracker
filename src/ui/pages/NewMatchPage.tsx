@@ -1,15 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
+import PlayerPicker from '../components/PlayerPicker';
 import { db, isLive, newId, saveRecord } from '../../storage/db';
 import { DEFAULT_RULE_SET_ID, describeRules } from '../../model/rules';
-import { SURFACES, type Match, type Player, type Surface } from '../../model/types';
+import { SURFACES, type Match, type Surface } from '../../model/types';
 import { navigate } from '../router';
 import { useAllPlayers, useAllRuleSets } from '../hooks';
 import { todayIso } from '../format';
-import { canEditMatch, isAdmin, isListedPlayer, useUser } from '../user';
-
-const NEW_PLAYER = '__new__';
+import { canEditMatch, canSelectPlayer, useUser } from '../user';
 
 /** Step 1 of a match: setup. Used for new matches and for editing a match that hasn't started. */
 export default function NewMatchPage({ id }: { id?: string }) {
@@ -42,10 +41,10 @@ export default function NewMatchPage({ id }: { id?: string }) {
 
 function SetupForm({ existing }: { existing: Match | null }) {
   const user = useUser();
-  const allPlayers = useAllPlayers() ?? [];
+  const allPlayers = useAllPlayers();
   // Keep the current players selectable when editing a match that uses another user's private player.
-  const players = allPlayers.filter(
-    (p) => isListedPlayer(user, p) || p.id === existing?.playerAId || p.id === existing?.playerBId,
+  const players = (allPlayers ?? []).filter(
+    (p) => canSelectPlayer(user, p) || p.id === existing?.playerAId || p.id === existing?.playerBId,
   );
   const ruleSets = useAllRuleSets();
   const [date, setDate] = useState(existing?.date ?? todayIso());
@@ -104,8 +103,8 @@ function SetupForm({ existing }: { existing: Match | null }) {
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
-          <PlayerPicker label="Player A" value={playerAId} onChange={setPlayerAId} players={players} otherId={playerBId} />
-          <PlayerPicker label="Player B" value={playerBId} onChange={setPlayerBId} players={players} otherId={playerAId} />
+          <PlayerPicker label="Player A" value={playerAId} onChange={setPlayerAId} players={players} otherId={playerBId} loading={allPlayers === undefined} />
+          <PlayerPicker label="Player B" value={playerBId} onChange={setPlayerBId} players={players} otherId={playerAId} loading={allPlayers === undefined} />
 
           <fieldset>
             <legend>Surface</legend>
@@ -162,78 +161,5 @@ function SetupForm({ existing }: { existing: Match | null }) {
         </form>
       </main>
     </>
-  );
-}
-
-interface PickerProps {
-  label: string;
-  value: string;
-  onChange: (id: string) => void;
-  players: Player[];
-  otherId: string;
-}
-
-function PlayerPicker({ label, value, onChange, players, otherId }: PickerProps) {
-  const user = useUser();
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-
-  async function add() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const now = Date.now();
-    const id = newId();
-    await saveRecord<Player>('players', {
-      id, name: trimmed, ownerId: isAdmin(user) ? undefined : user.id, createdAt: now, updatedAt: now,
-    });
-    onChange(id);
-    setName('');
-    setAdding(false);
-  }
-
-  if (adding) {
-    return (
-      <div className="field">
-        <span>{label} - new player</span>
-        <div className="inline-add">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Player name"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void add();
-              }
-            }}
-          />
-          <button className="btn btn-primary" type="button" onClick={() => void add()} disabled={!name.trim()}>
-            Add
-          </button>
-          <button className="btn" type="button" onClick={() => setAdding(false)}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <label>
-      {label}
-      <select
-        value={value}
-        onChange={(e) => (e.target.value === NEW_PLAYER ? setAdding(true) : onChange(e.target.value))}
-      >
-        <option value="">Select player</option>
-        {players.map((p) => (
-          <option key={p.id} value={p.id} disabled={p.id === otherId}>
-            {p.name}
-          </option>
-        ))}
-        <option value={NEW_PLAYER}>+ New player...</option>
-      </select>
-    </label>
   );
 }

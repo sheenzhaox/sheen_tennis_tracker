@@ -50,6 +50,12 @@ Phone installation and offline behavior have not yet been field-tested for this 
 - Do not log out, switch accounts, or clear browser/site data while changes are pending. Logging out removes local match data; unsynced changes can be lost.
 - Installing the app does not replace cloud sync or guarantee that the phone will retain local data indefinitely.
 
+## Players and Match Setup
+
+- **Players** shows only the players you can manage: normal users see their own players, while admins see admin-added shared players.
+- In new match setup, type a name into **Player A** or **Player B**. After three characters, suggestions match anywhere in the name, ignoring case, across your players and admin-added players.
+- Select a suggestion to use that player. The same player cannot be selected for both sides. If no name matches, use **+ Add new player**; at least three characters are required here. A normal user's new player is private; an admin's new player is shared.
+
 ## Rally Shot Details
 
 - Rally **Shot direction** uses **Down line**. Under **Shot type**, use **Drive volley** for a drive volley; Topspin is no longer offered for new points.
@@ -79,6 +85,6 @@ Phone installation and offline behavior have not yet been field-tested for this 
 | No Add to Home Screen or Install option | Open the link directly in Safari on iPhone or Chrome on Android. Update the browser if needed. |
 | App asks you to log in | Connect to the internet and use the account supplied by the administrator. |
 | Matches are missing | Check that you are using the correct account, then use Settings > Sync now. Another user's match must be shared with your account before you can see it. Shared matches are view-only. |
-| A player you added is unexpectedly view-only | Refresh the updated app while online, sign in as the user who added it, then use Settings > Sync now. This refreshes server-assigned ownership without clearing local data. Admin-added shared players remain view-only for normal users. |
+| A player you added is unexpectedly view-only | Refresh the updated app while online, sign in as the user who added it, then use Settings > Sync now. This refreshes server-assigned ownership without clearing local data. Admin-added shared players are searchable in match setup, but do not appear in a normal user's Players list. |
 | App will not open offline | Reconnect and open the installed app fully while online, then repeat the offline check. Do not clear site data if you have unsynced changes. |
 | Changes are not appearing on another phone | On the recording phone, reconnect and sync with no pending changes. Then open the app on the other phone and sync there too. |

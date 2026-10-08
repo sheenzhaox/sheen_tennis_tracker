@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { canEditPlayer, isListedPlayer } from '../ui/user';
+import { canEditPlayer, canSelectPlayer, isListedPlayer } from '../ui/user';
 import { syncNow } from './sync';
 
 const store = vi.hoisted(() => {
@@ -99,7 +99,8 @@ describe('sync ownership metadata', () => {
     const shared = { id: 'player', name: 'Test1', createdAt: 100, updatedAt: 100 };
     expect((await store.table('players').get('player'))?.ownerId).toBeUndefined();
     expect(canEditPlayer(user, shared)).toBe(false);
-    expect(isListedPlayer(user, shared)).toBe(true);
+    expect(isListedPlayer(user, shared)).toBe(false);
+    expect(canSelectPlayer(user, shared)).toBe(true);
     expect(canEditPlayer(user, { ...shared, ownerId: 'bob' })).toBe(false);
     expect(isListedPlayer(user, { ...shared, ownerId: 'bob' })).toBe(false);
   });

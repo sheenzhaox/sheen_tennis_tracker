@@ -18,7 +18,7 @@ export function useAllPlayers(): Player[] | undefined {
   return useLiveQuery(() => db.players.orderBy('name').filter((p) => !p.deletedAt).toArray(), []);
 }
 
-/** Players shown in the player list and pickers for the signed-in user. */
+/** Manageable players shown in the signed-in user's Players page. */
 export function usePlayers(): Player[] | undefined {
   const user = useUser();
   return useAllPlayers()?.filter((p) => isListedPlayer(user, p));
