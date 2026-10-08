@@ -48,4 +48,15 @@ describe('rally shot options and stats', () => {
     expect(html).toContain('<tr><th>Drive volley</th><td>0</td><td>0</td></tr>');
     expect(html).not.toContain('Topspin');
   });
+
+  it('shows Lucky ball only in total Winners, including on the shared stats view', () => {
+    const recorded = point('drive_volley');
+    if (!recorded.rally) throw new Error('Expected a rally fixture.');
+    const html = stats([{ ...recorded, rally: { ...recorded.rally, lucky: true } }]);
+    expect(html).toContain('<tr><th>Winners</th><td><strong>1</strong></td><td><strong>0</strong></td></tr>');
+    expect(html).toContain('<tr><th>Points won</th><td>0</td><td>0</td></tr>');
+    expect(html).toContain('<tr><th>- Rally winners</th><td>0</td><td>0</td></tr>');
+    expect(html).toContain('<tr><th>Drive volley</th><td>0</td><td>0</td></tr>');
+    expect(html).toContain('Lucky ball points count only in total Winners');
+  });
 });

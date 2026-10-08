@@ -9,6 +9,7 @@ import { canEditMatch, useUser } from '../user';
 import {
   errorTypeStats,
   filterSets,
+  isLuckyBall,
   pointContexts,
   rallyWinnerStats,
   serveLocationStats,
@@ -161,6 +162,9 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
           {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
         {match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
+        {points.some(isLuckyBall) && <p className="muted small">
+          Lucky ball points count only in total Winners and are excluded from all other stats. The match score is unchanged.
+        </p>}
         {sharing}
 
         <h2>Summary</h2>

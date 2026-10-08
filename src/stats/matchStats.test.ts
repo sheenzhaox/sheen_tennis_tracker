@@ -152,6 +152,66 @@ describe('match stats', () => {
     expect(types.A.none).toEqual({ winners: 1, errors: 0 });
   });
 
+  for (const winner of ['A', 'B'] as const) {
+    it(`counts a Lucky ball only in total Winners for ${winner}`, () => {
+      for (const server of ['A', 'B'] as const) {
+        for (const serves of [[serve('in', { location: 't' })], [serve('fault', { location: 'wide' }), serve('in', { location: 'body' })]]) {
+          const lucky = point(server, winner, 'rally', serves, rally(server === winner ? 'server_winner' : 'returner_winner', {
+            lucky: true, count: 9, stroke: 'forehand', direction: 'down_the_line', shotType: 'drive_volley', position: 'net',
+          }));
+          const contexts = pointContexts(match, [lucky]);
+          const expected = summary([]);
+          expected[winner].winners.total = 1;
+          expect(summary(contexts)).toEqual(expected);
+          for (const player of ['A', 'B'] as const) {
+            for (const games of ['all', 'serve', 'return'] as const) {
+              expect(strokeStats(contexts, player, games)).toEqual(strokeStats([], player, games));
+            }
+            for (const side of ['all', 'deuce', 'ad'] as const) {
+              for (const situation of ['all', 'first', 'game', 'break'] as const) {
+                expect(serveLocationStats(contexts, player, side, situation)).toEqual(serveLocationStats([], player, side, situation));
+              }
+            }
+          }
+          expect(shotTypeStats(contexts)).toEqual(shotTypeStats([]));
+          for (const stroke of ['forehand', 'backhand'] as const) {
+            expect(rallyWinnerStats(contexts, stroke)).toEqual(rallyWinnerStats([], stroke));
+          }
+          expect(errorTypeStats(contexts, 'all', 'all')).toEqual(errorTypeStats([], 'all', 'all'));
+        }
+      }
+    });
+  }
+
+  it('keeps scoring context and normal point stats unchanged after a Lucky ball', () => {
+    const lucky = point('A', 'A', 'rally', [serve('in', { location: 't' })], rally('server_winner', { lucky: true, count: 3, stroke: 'forehand' }));
+    const normal = point('A', 'B', 'return_winner', [serve('return_winner', { location: 'body' })]);
+    const contexts = pointContexts(match, [lucky, normal]);
+    expect(contexts[1].before.points).toEqual({ a: 1, b: 0 });
+    expect(contexts[1].side).toBe('ad');
+    const expected = summary(contexts.slice(1));
+    expected.A.winners.total++;
+    expect(summary(contexts)).toEqual(expected);
+    expect(serveLocationStats(contexts, 'A', 'ad', 'all').body.first).toEqual({ count: 1, in: 1, won: 0 });
+    expect(serveLocationStats(contexts, 'A', 'all', 'all')).toEqual(serveLocationStats(contexts.slice(1), 'A', 'all', 'all'));
+    expect(strokeStats(contexts, 'B', 'all')).toEqual(strokeStats(contexts.slice(1), 'B', 'all'));
+  });
+
+  it('counts Lucky ball winners only in their selected set', () => {
+    const recorded = [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { lucky: true })),
+      ...Array.from({ length: 23 }, () => point('A', 'A', 'unrecorded', [])),
+      point('B', 'B', 'rally', [serve('in')], rally('server_winner', { lucky: true })),
+    ];
+    const contexts = pointContexts(match, recorded);
+    expect(contexts.at(-1)?.set).toBe(1);
+    expect(summary(filterSets(contexts, [0])).A.winners.total).toBe(1);
+    expect(summary(filterSets(contexts, [0])).B.winners.total).toBe(0);
+    expect(summary(filterSets(contexts, [1])).A.winners.total).toBe(0);
+    expect(summary(filterSets(contexts, [1])).B.winners.total).toBe(1);
+    expect(summary(filterSets(contexts, [1])).B.pointsWon).toBe(0);
+  });
+
   it('lists played sets incl. match tiebreak and filters by set', () => {
     const mtb: Match = { ...match, rules: { ...DEFAULT_RULES, finalSet: 'matchTiebreak' } };
     // A wins set 1 6-0, B wins set 2 6-0, then 3 match tiebreak points.

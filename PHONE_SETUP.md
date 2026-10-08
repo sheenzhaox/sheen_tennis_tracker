@@ -54,6 +54,7 @@ Phone installation and offline behavior have not yet been field-tested for this 
 
 - Rally **Shot direction** uses **Down line**. Under **Shot type**, use **Drive volley** for a drive volley; Topspin is no longer offered for new points.
 - Stats keep older Topspin records as **Topspin (legacy)** when present in the selected data. Unspecified shot types appear as **Not set**, not Drive volley. These labels also apply to shared stats and point-log CSV exports.
+- A point marked **Lucky ball** counts only in the Summary's total **Winners**. It is excluded from all other statistics, including **Points won**, serve percentages, and rally/shot breakdowns. It still counts toward the actual match score and stays in the point log.
 
 ## Finalising or Deleting a Match
 

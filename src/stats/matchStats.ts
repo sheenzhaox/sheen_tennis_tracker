@@ -21,6 +21,8 @@ export interface PointContext {
 
 export type PerSide<T> = Record<Side, T>;
 
+export const isLuckyBall = (point: Point) => point.end === 'rally' && point.rally?.lucky === true;
+
 function situationsOf(before: ScoreState, server: Side, rules: Rules): Set<Situation> {
   const out = new Set<Situation>();
   if (before.inTiebreak || before.winner) return out;
@@ -110,6 +112,10 @@ const emptySummary = (): Summary => ({
 export function summary(ctxs: PointContext[]): PerSide<Summary> {
   const s: PerSide<Summary> = { A: emptySummary(), B: emptySummary() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) {
+      s[p.winner].winners.total++;
+      continue;
+    }
     s[p.winner].pointsWon++;
     const { winnerBy, errorBy } = pointOutcome(p);
     if (winnerBy) {
@@ -160,6 +166,7 @@ export function serveLocationStats(
   const out = Object.fromEntries(LOCATIONS.map((l) => [l, { first: cell(), second: cell() }])) as ServeLocationStats;
   for (const c of ctxs) {
     const p = c.point;
+    if (isLuckyBall(p)) continue;
     if (p.server !== server || p.serves.length === 0) continue;
     if (side !== 'all' && c.side !== side) continue;
     if (situation !== 'all' && !c.situations.has(situation)) continue;
@@ -225,6 +232,7 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
   const opp = other(player);
   const endings: Ending[] = [];
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (games === 'serve' && p.server !== player) continue;
     if (games === 'return' && p.server === player) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
@@ -273,6 +281,7 @@ export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
   const row = () => Object.fromEntries(SHOT_TYPES.map((t) => [t, { winners: 0, errors: 0 }])) as Record<ShotType, WinnerErrorCount>;
   const out: ShotTypeStats = { A: row(), B: row() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (p.end !== 'rally' || !p.rally) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
     out[(winnerBy ?? errorBy)!][p.rally.shotType][winnerBy ? 'winners' : 'errors']++;
@@ -293,6 +302,7 @@ export function rallyWinnerStats(ctxs: PointContext[], stroke: 'forehand' | 'bac
   const types = () => Object.fromEntries(SHOT_TYPES.map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
   const out: RallyWinnerStats = { direction: { A: dirs(), B: dirs() }, shotType: { A: types(), B: types() } };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (p.end !== 'rally' || !p.rally || p.rally.stroke !== stroke) continue;
     const { winnerBy } = pointOutcome(p);
     if (!winnerBy) continue;
@@ -314,6 +324,7 @@ export function errorTypeStats(ctxs: PointContext[], stroke: StrokeFilter, posit
   const empty = (): Record<ErrorType, number> => ({ net: 0, long: 0, wide: 0, none: 0 });
   const out: PerSide<Record<ErrorType, number>> = { A: empty(), B: empty() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     const { errorBy } = pointOutcome(p);
     if (!errorBy) continue;
     let s: string;

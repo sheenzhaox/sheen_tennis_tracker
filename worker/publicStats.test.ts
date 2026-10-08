@@ -3,6 +3,7 @@ import type { Match, Point } from '../src/model/types';
 import worker from './index';
 import { getPublicStats, hashStatsToken, manageStatsLink, publicStatsData } from './publicStats';
 import type { Env, User } from './http';
+import { pointContexts, summary } from '../src/stats/matchStats';
 
 const owner: User = { id: 'owner', username: 'owner', role: 'user' };
 const match: Match = {
@@ -153,5 +154,18 @@ describe('public stats links', () => {
     expect(data.match.finalisation).toEqual({ winner: 'B', reason: 'player_a_retired' });
     expect(JSON.stringify(data)).not.toContain('Private finalisation note');
     expect(data.points).toHaveLength(1);
+  });
+
+  it('preserves Lucky ball classification for anonymous stats', () => {
+    const data = publicStatsData(match, [{
+      ...point, end: 'rally',
+      rally: { count: 3, ending: 'server_winner', stroke: 'forehand', lucky: true,
+        direction: 'down_the_line', shotType: 'drive_volley', position: 'net' },
+    }], 'Alice', 'Bob');
+    expect(data.points[0].rally?.lucky).toBe(true);
+    const stats = summary(pointContexts(data.match, data.points));
+    expect(stats.A.winners).toEqual({ total: 1, aces: 0, returnWinners: 0, rallyWinners: 0 });
+    expect(stats.A.pointsWon).toBe(0);
+    expect(stats.A.firstServe).toEqual({ served: 0, in: 0, won: 0 });
   });
 });
