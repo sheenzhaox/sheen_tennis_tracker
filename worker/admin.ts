@@ -90,6 +90,12 @@ export async function setMatchAccess(req: Request, env: Env, matchId: string): P
     // Re-send the match to newly granted users whose sync cursor is already past it.
     env.DB.prepare('UPDATE matches SET synced_at = ?2 WHERE id = ?1').bind(matchId, now),
     env.DB.prepare('UPDATE points SET synced_at = ?2 WHERE match_id = ?1').bind(matchId, now),
+    // Players may be private to the match owner; granted users need them for names.
+    env.DB.prepare(
+      `UPDATE players SET synced_at = ?2 WHERE id IN (
+         SELECT json_extract(data, '$.playerAId') FROM matches WHERE id = ?1
+         UNION SELECT json_extract(data, '$.playerBId') FROM matches WHERE id = ?1)`,
+    ).bind(matchId, now),
   ]);
   return getMatchAccess(env, matchId);
 }

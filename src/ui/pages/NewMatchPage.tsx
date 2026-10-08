@@ -5,9 +5,9 @@ import { db, isLive, newId, saveRecord } from '../../storage/db';
 import { DEFAULT_RULE_SET_ID, describeRules } from '../../model/rules';
 import { SURFACES, type Match, type Player, type Surface } from '../../model/types';
 import { navigate } from '../router';
-import { useAllRuleSets, usePlayers } from '../hooks';
+import { useAllPlayers, useAllRuleSets } from '../hooks';
 import { todayIso } from '../format';
-import { canEditMatch, useUser } from '../user';
+import { canEditMatch, isListedPlayer, useUser } from '../user';
 
 const NEW_PLAYER = '__new__';
 
@@ -42,7 +42,11 @@ export default function NewMatchPage({ id }: { id?: string }) {
 
 function SetupForm({ existing }: { existing: Match | null }) {
   const user = useUser();
-  const players = usePlayers() ?? [];
+  const allPlayers = useAllPlayers() ?? [];
+  // Keep the current players selectable when editing a match that uses another user's private player.
+  const players = allPlayers.filter(
+    (p) => isListedPlayer(user, p) || p.id === existing?.playerAId || p.id === existing?.playerBId,
+  );
   const ruleSets = useAllRuleSets();
   const [date, setDate] = useState(existing?.date ?? todayIso());
   const [playerAId, setPlayerAId] = useState(existing?.playerAId ?? '');

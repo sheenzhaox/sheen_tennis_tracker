@@ -244,6 +244,65 @@ h2 {
   background: var(--green-light);
 }
 
+.match-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.match-list-item > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-list-item > a .muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+}
+
+.btn-compact {
+  width: auto;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.match-list-actions .btn-compact {
+  width: auto;
+  min-height: 2.75rem;
+}
+
+.match-list-actions:has(.form) {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.match-list-actions:has(.form) > .btn-compact {
+  align-self: flex-end;
+  width: auto;
+}
+
+.match-finalise .form {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.match-finalise p {
+  margin: 0;
+}
+
 /* Forms */
 .form {
   display: flex;
@@ -457,6 +516,20 @@ legend {
 
 .undo-btn {
   margin: 0.75rem 0 1rem;
+}
+
+.point-note-entry {
+  margin: 0.75rem 0;
+}
+
+.point-note-entry > button {
+  align-self: flex-start;
+  min-height: 2.75rem;
+}
+
+.point-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .match-over {

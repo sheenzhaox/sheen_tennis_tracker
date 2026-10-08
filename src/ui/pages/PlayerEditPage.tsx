@@ -6,7 +6,7 @@ import type { Backhand, Handedness, Player } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
 import { formatMatchDay } from '../format';
-import { isAdmin, useUser } from '../user';
+import { canEditPlayer, isAdmin, isListedPlayer, useUser } from '../user';
 
 interface Props {
   id: string;
@@ -14,14 +14,15 @@ interface Props {
 }
 
 export default function PlayerEditPage({ id, returnTo }: Props) {
+  const user = useUser();
   const isNew = id === 'new';
   const player = useLiveQuery(
     async () => {
       if (isNew) return null;
       const p = await db.players.get(id);
-      return isLive(p) ? p : null;
+      return isLive(p) && isListedPlayer(user, p) ? p : null;
     },
-    [id],
+    [id, user.id],
   );
 
   if (!isNew && player === undefined) return null;
@@ -47,6 +48,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
   const [club, setClub] = useState(player?.club ?? '');
   const [notes, setNotes] = useState(player?.notes ?? '');
   const [error, setError] = useState('');
+  const editable = !player || canEditPlayer(user, player);
 
   const matches = useLiveQuery(() => (player ? matchesForPlayer(player.id) : []), [player?.id]) ?? [];
   const names = usePlayerNames();
@@ -54,6 +56,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    if (!editable) return;
     const trimmed = name.trim();
     if (!trimmed) return setError('Name is required.');
     const now = Date.now();
@@ -65,6 +68,8 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
       rating: rating.trim() || undefined,
       club: club.trim() || undefined,
       notes: notes.trim() || undefined,
+      // The server assigns the owner; set it locally so a new private player is listed before it syncs.
+      ownerId: player ? player.ownerId : isAdmin(user) ? undefined : user.id,
       createdAt: player?.createdAt ?? now,
       updatedAt: now,
     };
@@ -73,7 +78,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
   }
 
   async function remove() {
-    if (!player) return;
+    if (!player || !editable) return;
     if (matches.length > 0) return setError('This player has recorded matches and cannot be deleted.');
     if (!confirm(`Delete ${player.name}?`)) return;
     await deleteRecord('players', player.id);
@@ -82,46 +87,51 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
 
   return (
     <>
-      <Header title={player ? 'Edit player' : 'New player'} back={back} />
+      <Header title={!player ? 'New player' : editable ? 'Edit player' : 'Player'} back={back} />
       <main className="page">
         <form className="form" onSubmit={save}>
-          <label>
-            Name *
-            <input value={name} onChange={(e) => setName(e.target.value)} autoFocus={!player} />
-          </label>
-          <label>
-            Plays
-            <select value={handedness} onChange={(e) => setHandedness(e.target.value as Handedness | '')}>
-              <option value="">-</option>
-              <option value="right">Right-handed</option>
-              <option value="left">Left-handed</option>
-            </select>
-          </label>
-          <label>
-            Backhand
-            <select value={backhand} onChange={(e) => setBackhand(e.target.value as Backhand | '')}>
-              <option value="">-</option>
-              <option value="one-handed">One-handed</option>
-              <option value="two-handed">Two-handed</option>
-            </select>
-          </label>
-          <label>
-            Rating (e.g. UTR / NTRP)
-            <input value={rating} onChange={(e) => setRating(e.target.value)} />
-          </label>
-          <label>
-            Club
-            <input value={club} onChange={(e) => setClub(e.target.value)} />
-          </label>
-          <label>
-            Notes
-            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
+          {!editable && <p className="muted">Shared player added by an admin (view only).</p>}
+          <fieldset className="form" disabled={!editable}>
+            <label>
+              Name *
+              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus={!player} />
+            </label>
+            <label>
+              Plays
+              <select value={handedness} onChange={(e) => setHandedness(e.target.value as Handedness | '')}>
+                <option value="">-</option>
+                <option value="right">Right-handed</option>
+                <option value="left">Left-handed</option>
+              </select>
+            </label>
+            <label>
+              Backhand
+              <select value={backhand} onChange={(e) => setBackhand(e.target.value as Backhand | '')}>
+                <option value="">-</option>
+                <option value="one-handed">One-handed</option>
+                <option value="two-handed">Two-handed</option>
+              </select>
+            </label>
+            <label>
+              Rating (optional, e.g. UTR / NTRP)
+              <input value={rating} onChange={(e) => setRating(e.target.value)} />
+            </label>
+            <label>
+              Club (optional)
+              <input value={club} onChange={(e) => setClub(e.target.value)} />
+            </label>
+            <label>
+              Notes (optional)
+              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+          </fieldset>
           {error && <p className="error">{error}</p>}
-          <button className="btn btn-primary" type="submit">
-            Save
-          </button>
-          {player && isAdmin(user) && (
+          {editable && (
+            <button className="btn btn-primary" type="submit">
+              Save
+            </button>
+          )}
+          {player && editable && (
             <button className="btn btn-danger" type="button" onClick={remove}>
               Delete player
             </button>

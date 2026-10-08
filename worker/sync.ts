@@ -42,12 +42,12 @@ function parseRecord(value: unknown): SyncRecord | null {
   return r as unknown as SyncRecord;
 }
 
-function upsert(db: D1Database, r: SyncRecord, syncedAt: number, ownerId: string): D1PreparedStatement {
+function upsert(db: D1Database, r: SyncRecord, syncedAt: number, user: User): D1PreparedStatement {
   const t = TABLES[r.kind];
   const data = { ...r.data };
   for (const f of SERVER_FIELDS) delete data[f];
-  // Owner (matches) / match id (points) are fixed on insert.
-  const extraCol = r.kind === 'matches' ? ', owner_id' : r.kind === 'points' ? ', match_id' : '';
+  // Owner (matches, players) / match id (points) are fixed on insert.
+  const extraCol = r.kind === 'matches' || r.kind === 'players' ? ', owner_id' : r.kind === 'points' ? ', match_id' : '';
   const extraVal = extraCol ? ', ?6' : '';
   // SET expressions see the pre-update row, so last-write-wins is decided on the old updated_at.
   const stmt = db.prepare(
@@ -59,14 +59,47 @@ function upsert(db: D1Database, r: SyncRecord, syncedAt: number, ownerId: string
        synced_at = excluded.synced_at`,
   );
   const args: unknown[] = [r.id, r.updatedAt, r.deletedAt, syncedAt, JSON.stringify(data)];
-  if (r.kind === 'matches') args.push(ownerId);
+  if (r.kind === 'matches') args.push(user.id);
+  // Players added by an admin are shared with everyone (NULL owner); others are private to their creator.
+  if (r.kind === 'players') args.push(user.role === 'admin' ? null : user.id);
   if (r.kind === 'points') args.push(data.matchId);
   return stmt.bind(...args);
+}
+
+/** Re-sends a match's players so users who can see the match also get (possibly private) player names. */
+function touchMatchPlayers(db: D1Database, r: SyncRecord, syncedAt: number): D1PreparedStatement {
+  return db
+    .prepare('UPDATE players SET synced_at = ?1 WHERE id IN (?2, ?3) AND synced_at < ?1')
+    .bind(syncedAt, String(r.data.playerAId ?? ''), String(r.data.playerBId ?? ''));
 }
 
 /** Matches the user can see: own + granted (admin sees all). `?2` = user id. */
 const VISIBLE_MATCHES = `SELECT id FROM matches WHERE owner_id = ?2
   UNION SELECT match_id FROM match_access WHERE user_id = ?2 AND revoked_at IS NULL`;
+
+/** Players the user can see: shared (admin-added), own, and players in matches the user can see. */
+const VISIBLE_PLAYERS = `players.owner_id IS NULL OR players.owner_id = ?2 OR players.id IN (
+  SELECT json_extract(data, '$.playerAId') FROM matches WHERE id IN (${VISIBLE_MATCHES})
+  UNION SELECT json_extract(data, '$.playerBId') FROM matches WHERE id IN (${VISIBLE_MATCHES}))`;
+
+export interface ServerPlayer {
+  owner_id: string | null;
+  deleted_at: number | null;
+}
+
+/** Non-admins may add players, and edit or delete (when not used in a match) only players they added. */
+export function canWritePlayer(user: User, r: Pick<SyncRecord, 'deletedAt'>, server: ServerPlayer | undefined, inUse: boolean): boolean {
+  if (user.role === 'admin') return true;
+  if (!server) return r.deletedAt === null;
+  if (server.owner_id !== user.id || server.deleted_at) return false;
+  return r.deletedAt === null || !inUse;
+}
+
+export function canWriteMatch(user: User, r: Pick<SyncRecord, 'deletedAt'>, server: ServerPlayer | undefined): boolean {
+  if (user.role === 'admin') return true;
+  if (!server) return true;
+  return server.owner_id === user.id && (!server.deleted_at || r.deletedAt !== null);
+}
 
 function selectRows(db: D1Database, kind: Kind, user: User, where: string, param: unknown): D1PreparedStatement {
   const admin = user.role === 'admin';
@@ -74,18 +107,21 @@ function selectRows(db: D1Database, kind: Kind, user: User, where: string, param
     kind === 'matches'
       ? `SELECT m.id, m.updated_at, m.deleted_at, m.synced_at, m.data, m.owner_id, u.username AS owner_name
          FROM matches m LEFT JOIN users u ON u.id = m.owner_id WHERE ${where.replaceAll('{t}', 'm')}`
-      : `SELECT id, updated_at, deleted_at, synced_at, data FROM ${TABLES[kind]} WHERE ${where.replaceAll('{t}', TABLES[kind])}`;
+      : `SELECT id, updated_at, deleted_at, synced_at, data${kind === 'players' ? ', owner_id' : ''} FROM ${TABLES[kind]} WHERE ${where.replaceAll('{t}', TABLES[kind])}`;
   const filter =
-    admin || kind === 'players' || kind === 'ruleSets'
+    admin || kind === 'ruleSets'
       ? ''
-      : kind === 'matches'
-        ? ` AND m.id IN (${VISIBLE_MATCHES})`
-        : ` AND match_id IN (${VISIBLE_MATCHES})`;
+      : kind === 'players'
+        ? ` AND (${VISIBLE_PLAYERS})`
+        : kind === 'matches'
+          ? ` AND m.id IN (${VISIBLE_MATCHES})`
+          : ` AND match_id IN (${VISIBLE_MATCHES})`;
   return filter ? db.prepare(base + filter).bind(param, user.id) : db.prepare(base).bind(param);
 }
 
 function toRecord(kind: Kind, row: Row): SyncRecord {
   const data = JSON.parse(row.data) as Record<string, unknown>;
+  if (kind === 'players') data.ownerId = row.owner_id ?? undefined;
   if (kind === 'matches') {
     data.ownerId = row.owner_id ?? undefined;
     data.ownerName = row.owner_name ?? undefined;
@@ -93,35 +129,44 @@ function toRecord(kind: Kind, row: Row): SyncRecord {
   return { kind, id: row.id, updatedAt: row.updated_at, deletedAt: row.deleted_at, data };
 }
 
-/** Non-admins can't delete, can't touch rule sets, and can only write their own matches and their points. */
+/** Non-admins can't touch rule sets and can only write their own players, matches and points. */
 async function partition(db: D1Database, user: User, records: SyncRecord[]): Promise<{ allowed: SyncRecord[]; rejected: SyncRecord[] }> {
   const ids = (k: Kind) => JSON.stringify(records.filter((r) => r.kind === k).map((r) => r.id));
+  const deletedPlayerIds = JSON.stringify(records.filter((r) => r.kind === 'players' && r.deletedAt !== null).map((r) => r.id));
   const matchIds = JSON.stringify([
     ...new Set(records.flatMap((r) => (r.kind === 'matches' ? [r.id] : r.kind === 'points' ? [r.data.matchId as string] : []))),
   ]);
-  const [players, matches] = await db.batch<{ id: string; deleted_at: number | null; owner_id?: string | null }>([
-    db.prepare('SELECT id, deleted_at FROM players WHERE id IN (SELECT value FROM json_each(?1))').bind(ids('players')),
+  const [players, matches, usedPlayers] = await db.batch<{ id: string; deleted_at: number | null; owner_id: string | null }>([
+    db.prepare('SELECT id, deleted_at, owner_id FROM players WHERE id IN (SELECT value FROM json_each(?1))').bind(ids('players')),
     db.prepare('SELECT id, deleted_at, owner_id FROM matches WHERE id IN (SELECT value FROM json_each(?1))').bind(matchIds),
+    db.prepare(
+      `SELECT value AS id FROM json_each(?1) WHERE value IN (
+         SELECT json_extract(data, '$.playerAId') FROM matches WHERE deleted_at IS NULL
+         UNION SELECT json_extract(data, '$.playerBId') FROM matches WHERE deleted_at IS NULL)`,
+    ).bind(deletedPlayerIds),
   ]);
-  const deletedPlayers = new Set(players.results.filter((p) => p.deleted_at).map((p) => p.id));
+  const serverPlayers = new Map(players.results.map((p) => [p.id, p]));
+  const inUse = new Set(usedPlayers.results.map((p) => p.id));
   const serverMatches = new Map(matches.results.map((m) => [m.id, m]));
-  const ownMatches = new Set<string>();
+  const ownMatches = new Map(records.filter((r) =>
+    r.kind === 'matches' && canWriteMatch(user, r, serverMatches.get(r.id)),
+  ).map((r) => [r.id, r.deletedAt]));
 
   const allowed: SyncRecord[] = [];
   const rejected: SyncRecord[] = [];
   for (const r of records) {
     let ok: boolean;
     if (user.role === 'admin') ok = true;
-    else if (r.kind === 'players') ok = r.deletedAt === null && !deletedPlayers.has(r.id);
+    else if (r.kind === 'players') ok = canWritePlayer(user, r, serverPlayers.get(r.id), inUse.has(r.id));
     else if (r.kind === 'ruleSets') ok = false;
     else if (r.kind === 'matches') {
-      const m = serverMatches.get(r.id);
-      ok = r.deletedAt === null && (!m || (m.owner_id === user.id && !m.deleted_at));
-      if (ok) ownMatches.add(r.id);
+      ok = canWriteMatch(user, r, serverMatches.get(r.id));
     } else {
       const matchId = r.data.matchId as string;
       const m = serverMatches.get(matchId);
-      ok = ownMatches.has(matchId) || (!!m && m.owner_id === user.id && !m.deleted_at);
+      ok = ownMatches.has(matchId)
+        ? ownMatches.get(matchId) === null || r.deletedAt !== null
+        : !!m && m.owner_id === user.id && (!m.deleted_at || r.deletedAt !== null);
     }
     (ok ? allowed : rejected).push(r);
   }
@@ -151,7 +196,20 @@ export async function sync(req: Request, db: D1Database, user: User): Promise<Re
 
   const { allowed, rejected } = await partition(db, user, records);
   const syncedAt = Date.now();
-  if (allowed.length) await db.batch(allowed.map((r) => upsert(db, r, syncedAt, user.id)));
+  if (allowed.length) {
+    await db.batch([
+      ...allowed.map((r) => upsert(db, r, syncedAt, user)),
+      ...allowed.filter((r) => r.kind === 'matches' && r.deletedAt !== null).map((r) =>
+        db.prepare(
+          `UPDATE points SET deleted_at = (SELECT deleted_at FROM matches WHERE id = ?1),
+             updated_at = MAX(updated_at + 1, (SELECT deleted_at FROM matches WHERE id = ?1)), synced_at = ?2
+           WHERE match_id = ?1 AND deleted_at IS NULL
+             AND EXISTS (SELECT 1 FROM matches WHERE id = ?1 AND deleted_at IS NOT NULL)`,
+        ).bind(r.id, syncedAt),
+      ),
+      ...allowed.filter((r) => r.kind === 'matches' && r.deletedAt === null).map((r) => touchMatchPlayers(db, r, syncedAt)),
+    ]);
+  }
 
   const pulls = KINDS.map((k) => selectRows(db, k, user, '{t}.synced_at > ?1', since - PULL_OVERLAP_MS));
   // Current server copy of rejected records, so the client can roll back (missing = not visible -> remove locally).

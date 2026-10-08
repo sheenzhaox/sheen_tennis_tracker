@@ -50,6 +50,22 @@ Phone installation and offline behavior have not yet been field-tested for this 
 - Do not log out, switch accounts, or clear browser/site data while changes are pending. Logging out removes local match data; unsynced changes can be lost.
 - Installing the app does not replace cloud sync or guarantee that the phone will retain local data indefinitely.
 
+## Finalising or Deleting a Match
+
+- On **Matches**, use the small **Finalise** button on the right of an in-progress match. Choose who won (Player 1 or Player 2), then choose **Player 1 retired**, **Player 2 retired**, or **Didn't record the remaining**, and confirm.
+- Finalising moves the match to **Finished** and keeps only the points you actually recorded. The saved winner and reason appear in the match and stats, including public stats links. Player 1 is the first player listed; Player 2 is the second.
+- Finalise from **Matches**, not the point recording screen. **Undo finalisation** on the tracker reopens the match without deleting any recorded points.
+- On **Matches**, use the small **Delete** button on the right and confirm to remove an in-progress or finished match and its recorded points. Scheduled matches can also be deleted. Deletion cannot be undone, and public stats links stop working once the deletion syncs.
+- You can only change or delete your own matches; shared matches are view-only. Admins can manage all matches. These changes save locally offline and sync when you reconnect.
+
+## Sharing Stats with a Coach
+
+- Open the match's **Stats** page and choose **Create link**, then **Copy link**. Send that public link, not the private Stats page address.
+- Anyone with the link can view stats online without an account. If an older cached version asks for login, refresh the browser.
+- Return to Stats to see and copy the same link. **Create new link** replaces it; **Revoke link** disables it. Both require a connection.
+- Older links created before link retrieval was added still work. Paste the original URL into **Existing public stats link** and choose **Restore existing link** once to make it available on subsequent visits without replacing it.
+- Point observations and private match metadata are not included in public stats.
+
 ## Troubleshooting
 
 | Problem | What to try |

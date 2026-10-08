@@ -17,7 +17,7 @@ const point: Point = {
 
 function setup(firstResult: unknown = { owner_id: owner.id }) {
   const first = vi.fn().mockResolvedValue(firstResult);
-  const run = vi.fn().mockResolvedValue({ success: true });
+  const run = vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } });
   const bind = vi.fn();
   const statement = { bind, first, run };
   bind.mockReturnValue(statement);
@@ -31,24 +31,64 @@ function setup(firstResult: unknown = { owner_id: owner.id }) {
 }
 
 describe('public stats links', () => {
-  it('creates a random token unrelated to the match ID and persists only its hash', async () => {
+  it('creates a random token and persists it for owner retrieval alongside its lookup hash', async () => {
     const { env, bind } = setup();
     const response = await manageStatsLink(new Request('https://example.com', { method: 'POST' }), env, owner, match.id);
     const data = await response.json() as { token: string; active: boolean };
     expect(data.token).toMatch(/^[a-f0-9]{64}$/);
     expect(data.token).not.toContain(match.id);
     expect(data.active).toBe(true);
-    expect(bind).toHaveBeenLastCalledWith(match.id, await hashStatsToken(data.token), expect.any(Number));
-    expect(bind.mock.calls.flat()).not.toContain(data.token);
+    expect(bind).toHaveBeenLastCalledWith(match.id, await hashStatsToken(data.token), expect.any(Number), data.token);
   });
 
   it('denies creation, status lookup, and revocation by a view-only user', async () => {
-    for (const method of ['GET', 'POST', 'DELETE']) {
+    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
       const { env, run } = setup();
       const response = await manageStatsLink(new Request('https://example.com', { method }), env, { ...owner, id: 'viewer' }, match.id);
       expect(response.status).toBe(403);
       expect(run).not.toHaveBeenCalled();
     }
+  });
+
+  it('retrieves the same active token for the owner and admin on subsequent visits', async () => {
+    for (const user of [owner, { ...owner, id: 'admin', role: 'admin' as const }]) {
+      const { env, first } = setup();
+      first.mockResolvedValueOnce({ owner_id: owner.id }).mockResolvedValueOnce({ token: 'a'.repeat(64) });
+      const response = await manageStatsLink(new Request('https://example.com'), env, user, match.id);
+      expect(await response.json()).toEqual({ active: true, token: 'a'.repeat(64) });
+    }
+  });
+
+  it('does not return a revoked token and preserves older hash-only links', async () => {
+    for (const [link, expected] of [[null, { active: false }], [{ token: null }, { active: true }]]) {
+      const { env, first } = setup();
+      first.mockResolvedValueOnce({ owner_id: owner.id }).mockResolvedValueOnce(link);
+      const response = await manageStatsLink(new Request('https://example.com'), env, owner, match.id);
+      expect(await response.json()).toEqual(expected);
+    }
+  });
+
+  it('restores an original URL only when its hash matches the active link', async () => {
+    const token = 'b'.repeat(64);
+    const { env, bind, prepare, run } = setup();
+    const request = () => new Request('https://example.com', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+    });
+    const response = await manageStatsLink(request(), env, owner, match.id);
+    expect(await response.json()).toEqual({ token, active: true });
+    expect(bind).toHaveBeenLastCalledWith(match.id, token, await hashStatsToken(token));
+    expect(prepare).toHaveBeenLastCalledWith(expect.stringContaining('revoked_at IS NULL'));
+    run.mockResolvedValueOnce({ success: true, meta: { changes: 0 } });
+    expect((await manageStatsLink(request(), env, owner, match.id)).status).toBe(404);
+  });
+
+  it('rejects malformed restored tokens without writing', async () => {
+    const { env, run } = setup();
+    const response = await manageStatsLink(new Request('https://example.com', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'bad' }),
+    }), env, owner, match.id);
+    expect(response.status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('allows admin management and revokes the active link', async () => {
@@ -98,12 +138,20 @@ describe('public stats links', () => {
   it('strips private identifiers, metadata, and unexpected nested fields', () => {
     const privateServe = { ...point.serves[0], notes: 'Private serve note' };
     const privateRules = { ...match.rules, notes: 'Private rule note' };
-    const data = publicStatsData({ ...match, rules: privateRules }, [{ ...point, serves: [privateServe] }], 'Alice', 'Bob');
+    const data = publicStatsData({ ...match, rules: privateRules }, [{ ...point, notes: 'Private point observation', serves: [privateServe] }], 'Alice', 'Bob');
     const serialized = JSON.stringify(data);
     expect(serialized).not.toContain('Private');
     expect(serialized).not.toContain('private-');
     expect(serialized).not.toContain('owner');
     expect(data.points[0].serves[0]).toEqual({ result: 'ace', location: 'wide', type: 'flat', fault: undefined, return: undefined });
     expect(data.match.rules).toEqual(match.rules);
+  });
+
+  it('includes the finalised winner and reason without unexpected fields', () => {
+    const finalisation = { winner: 'B' as const, reason: 'player_a_retired' as const, notes: 'Private finalisation note' };
+    const data = publicStatsData({ ...match, status: 'completed', finalisation }, [point], 'Alice', 'Bob');
+    expect(data.match.finalisation).toEqual({ winner: 'B', reason: 'player_a_retired' });
+    expect(JSON.stringify(data)).not.toContain('Private finalisation note');
+    expect(data.points).toHaveLength(1);
   });
 });

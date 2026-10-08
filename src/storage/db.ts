@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Match, Player, Point, RuleSet } from '../model/types';
+import type { FinaliseReason, Match, Player, Point, RuleSet, Side } from '../model/types';
+import { finalisedMatch } from '../model/match';
 
 export interface MetaEntry {
   key: string;
@@ -58,7 +59,24 @@ export async function saveRecord<T extends { id: string }>(table: SyncTable, rec
 
 export async function deleteRecord(table: SyncTable, id: string): Promise<void> {
   const now = Date.now();
-  await db.table(table).update(id, { deletedAt: now, updatedAt: now, dirty: 1 });
+  const tombstone = { deletedAt: now, updatedAt: now, dirty: 1 as const };
+  if (table === 'matches') {
+    await db.transaction('rw', db.matches, db.points, async () => {
+      if (!await db.matches.update(id, tombstone)) throw new Error('Match not found.');
+      await db.points.where('matchId').equals(id).modify(tombstone);
+    });
+  } else {
+    await db.table(table).update(id, tombstone);
+  }
+  changeListeners.forEach((fn) => fn());
+}
+
+export async function finaliseMatch(id: string, winner: Side, reason: FinaliseReason): Promise<void> {
+  await db.transaction('rw', db.matches, async () => {
+    const match = await db.matches.get(id);
+    if (!match) throw new Error('Match not found.');
+    await db.matches.put({ ...finalisedMatch(match, winner, reason, Date.now()), dirty: 1 });
+  });
   changeListeners.forEach((fn) => fn());
 }
 

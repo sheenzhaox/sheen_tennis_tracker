@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
 import StatsShare from '../components/StatsShare';
+import { finalisationLabel } from '../../model/match';
 import { db, isLive, pointsForMatch } from '../../storage/db';
 import { usePlayerNames } from '../hooks';
 import { canEditMatch, useUser } from '../user';
@@ -156,6 +157,7 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
           {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
+        {match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
         {sharing}
 
         <h2>Summary</h2>

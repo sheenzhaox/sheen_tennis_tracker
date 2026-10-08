@@ -15,6 +15,8 @@ export interface Player extends Syncable {
   rating?: string;
   club?: string;
   notes?: string;
+  /** Set by the server: user who added the player (private to them). Unset = added by an admin, visible to everyone. */
+  ownerId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -47,6 +49,13 @@ export interface RuleSet extends Syncable {
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'abandoned';
 export type Surface = 'hard' | 'clay' | 'synthetic_grass' | 'grass';
 export type Side = 'A' | 'B';
+export type FinaliseReason = 'player_a_retired' | 'player_b_retired' | 'remaining_unrecorded';
+
+export const FINALISE_REASONS: { value: FinaliseReason; label: string }[] = [
+  { value: 'player_a_retired', label: 'Player 1 retired' },
+  { value: 'player_b_retired', label: 'Player 2 retired' },
+  { value: 'remaining_unrecorded', label: "Didn't record the remaining" },
+];
 
 export const SURFACES: { value: Surface; label: string }[] = [
   { value: 'hard', label: 'Hard' },
@@ -76,6 +85,7 @@ export interface Match extends Syncable {
   /** Timestamp when "Start match" was pressed. */
   startedAt?: number;
   finishedAt?: number;
+  finalisation?: { winner: Side; reason: FinaliseReason };
   createdAt?: number;
   updatedAt: number;
   /** Set by the server: the user who recorded the match. Unset = created on this device, not synced yet. */
@@ -145,6 +155,7 @@ export interface Point extends Syncable {
   end: PointEnd;
   /** Set when the serve went in and the point was played out. */
   rally?: RallyDetail;
+  notes?: string;
   createdAt: number;
   updatedAt: number;
 }

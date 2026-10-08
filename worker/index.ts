@@ -21,7 +21,7 @@ export default {
     if (path === '/api/logout' && req.method === 'POST') return logout(req, env);
     if (path === '/api/password' && req.method === 'POST') return changePassword(req, env, user);
     const statsLink = path.match(/^\/api\/matches\/([^/]+)\/stats-link$/);
-    if (statsLink && isId(statsLink[1]) && ['GET', 'POST', 'DELETE'].includes(req.method)) {
+    if (statsLink && isId(statsLink[1]) && ['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) {
       return manageStatsLink(req, env, user, statsLink[1]);
     }
 

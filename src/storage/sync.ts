@@ -74,7 +74,7 @@ function toRemote(kind: SyncTable, r: LocalRecord & Record<string, unknown>): Re
   return { kind, id: r.id, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? null, data };
 }
 
-async function applyResponse(pushed: RemoteRecord[], res: SyncResponse) {
+async function applyResponse(pushed: RemoteRecord[], res: SyncResponse, userId: string) {
   const put = (r: RemoteRecord) =>
     db.table(r.kind).put({ ...r.data, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? undefined, dirty: 0 });
   await db.transaction('rw', SYNC_TABLES.map((t) => db.table(t)), async () => {
@@ -96,6 +96,11 @@ async function applyResponse(pushed: RemoteRecord[], res: SyncResponse) {
     for (const matchId of res.revoked ?? []) {
       await db.matches.delete(matchId);
       await db.points.where('matchId').equals(matchId).delete();
+    }
+    if (res.revoked?.length) {
+      // Drop other users' private players that are no longer used by any match visible here.
+      const used = new Set((await db.matches.toArray()).flatMap((m) => [m.playerAId, m.playerBId]));
+      await db.players.filter((p) => !!p.ownerId && p.ownerId !== userId && !used.has(p.id)).delete();
     }
   });
 }
@@ -129,7 +134,7 @@ async function doSync(): Promise<void> {
       }
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const body = (await res.json()) as SyncResponse;
-      await applyResponse(chunk, body);
+      await applyResponse(chunk, body, session.user.id);
       since = body.cursor;
       await db.meta.put({ key: 'cursor', value: since });
     } while (offset < dirty.length);

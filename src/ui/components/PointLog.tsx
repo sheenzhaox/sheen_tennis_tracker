@@ -87,16 +87,17 @@ function pointLogRows({ match, nameA, nameB }: Props, points: Point[]) {
       server: name(point.server),
       serves: point.serves.map(describeServe),
       rally: point.rally ? describeRally(point.rally, name(point.server), name(point.server === 'A' ? 'B' : 'A')) : '',
+      notes: point.notes ?? '',
     };
   });
 }
 
 export function pointLogCsv(props: Props, points: Point[]): string {
   return stringify([
-    ['Match ID', 'Player A', 'Player B', 'Point', 'Score before (A-B)', 'Winner', 'Ending', 'Server', 'First serve', 'Second serve', 'Rally'],
+    ['Match ID', 'Player A', 'Player B', 'Point', 'Score before (A-B)', 'Winner', 'Ending', 'Server', 'First serve', 'Second serve', 'Rally', 'Notes'],
     ...pointLogRows(props, points).map((row) => [
       props.match.id, props.nameA, props.nameB, row.number, row.score, row.winner, row.ending, row.server,
-      row.serves[0] ?? '', row.serves[1] ?? '', row.rally,
+      row.serves[0] ?? '', row.serves[1] ?? '', row.rally, row.notes,
     ]),
   ], { bom: true, record_delimiter: 'windows', escape_formulas: true });
 }
@@ -131,6 +132,7 @@ export default function PointLog({ match, nameA, nameB }: Props) {
             </div>
             {row.serves.length > 0 && <div className="muted">{row.serves.join(' | ')}</div>}
             {row.rally && <div className="muted">{row.rally}</div>}
+            {row.notes && <div className="point-note">Note: {row.notes}</div>}
           </li>
         ))}
       </ol>

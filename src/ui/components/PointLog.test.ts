@@ -21,8 +21,8 @@ describe('pointLogCsv', () => {
   it('exports a header with UTF-8 BOM and one row per point with the score before it', () => {
     const csv = pointLogCsv(props, [point, { ...point, id: 'point-2', seq: 1, winner: 'B' }]);
     expect(csv.startsWith('\uFEFFMatch ID,Player A,Player B,Point,Score before (A-B)')).toBe(true);
-    expect(csv).toContain('match-1,Alice,Bob,1,0-0 · 0-0,Alice,Not recorded (manual score),Alice,,,\r\n');
-    expect(csv).toContain('match-1,Alice,Bob,2,0-0 · 15-0,Bob,Not recorded (manual score),Alice,,,\r\n');
+    expect(csv).toContain('match-1,Alice,Bob,1,0-0 · 0-0,Alice,Not recorded (manual score),Alice,,,,\r\n');
+    expect(csv).toContain('match-1,Alice,Bob,2,0-0 · 15-0,Bob,Not recorded (manual score),Alice,,,,\r\n');
     expect(csv.split('\r\n')).toHaveLength(4);
   });
 
@@ -54,5 +54,12 @@ describe('pointLogCsv', () => {
 
   it('exports only the header when there are no recorded points', () => {
     expect(pointLogCsv(props, []).split('\r\n')).toHaveLength(2);
+  });
+
+  it('exports multiline observations and protects formula-like notes', () => {
+    const csv = pointLogCsv(props, [{ ...point, notes: 'Late contact,\n"watch footwork"' }]);
+    expect(csv).toContain('Rally,Notes\r\n');
+    expect(csv).toContain('"Late contact,\n""watch footwork"""');
+    expect(pointLogCsv(props, [{ ...point, notes: '=1+1' }])).toContain(",'=1+1\r\n");
   });
 });

@@ -5,6 +5,7 @@ import { subscribeSync, type SyncState } from '../storage/sync';
 import type { Session } from '../storage/session';
 import { BUILT_IN_RULE_SETS } from '../model/rules';
 import type { Player, RuleSet } from '../model/types';
+import { isListedPlayer, useUser } from './user';
 
 export function useAllRuleSets(): RuleSet[] {
   const custom =
@@ -12,12 +13,19 @@ export function useAllRuleSets(): RuleSet[] {
   return [...BUILT_IN_RULE_SETS, ...custom];
 }
 
-export function usePlayers(): Player[] | undefined {
+/** All synced players, including other users' private players referenced by visible matches. */
+export function useAllPlayers(): Player[] | undefined {
   return useLiveQuery(() => db.players.orderBy('name').filter((p) => !p.deletedAt).toArray(), []);
 }
 
+/** Players shown in the player list and pickers for the signed-in user. */
+export function usePlayers(): Player[] | undefined {
+  const user = useUser();
+  return useAllPlayers()?.filter((p) => isListedPlayer(user, p));
+}
+
 export function usePlayerNames(): Map<string, string> {
-  const players = usePlayers() ?? [];
+  const players = useAllPlayers() ?? [];
   return new Map(players.map((p) => [p.id, p.name]));
 }
 

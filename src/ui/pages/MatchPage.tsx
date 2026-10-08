@@ -9,6 +9,7 @@ import MatchTracker from './MatchTracker';
 import { db, deleteRecord, isLive, pointsForMatch } from '../../storage/db';
 import { computeScore } from '../../engine/score';
 import { describeRules } from '../../model/rules';
+import { finalisationLabel } from '../../model/match';
 import type { Match } from '../../model/types';
 import { navigate } from '../router';
 import { usePlayerNames } from '../hooks';
@@ -25,7 +26,9 @@ function ReadOnlyScore({ match, nameA, nameB }: { match: Match; nameA: string; n
         View only · recorded by {match.ownerName ?? 'unknown'}
         {match.status === 'scheduled' ? ' · not started' : ''}
       </p>
-      <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB} />
+      {match.finalisation && <p>{finalisationLabel(match, nameA, nameB)}</p>}
+      <ScoreTable score={score} noAd={match.rules.noAd} nameA={nameA} nameB={nameB}
+        finished={match.status === 'completed' || match.status === 'abandoned'} winner={match.finalisation?.winner} />
     </section>
   );
 }
