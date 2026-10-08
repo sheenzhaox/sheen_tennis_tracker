@@ -12,6 +12,8 @@ import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 import LoginPage from './pages/LoginPage';
 import UsersPage from './pages/UsersPage';
+import ClubsPage from './pages/ClubsPage';
+import PlayerStatsPage from './pages/PlayerStatsPage';
 import { useSession } from './hooks';
 import { isAdmin, UserContext, useUser } from './user';
 
@@ -54,6 +56,7 @@ function Routes() {
 
   switch (section) {
     case 'players':
+      if (id && action === 'stats') return <PlayerStatsPage id={id} />;
       return id ? <PlayerEditPage id={id} returnTo={safeReturn(query.get('return'))} /> : <PlayersPage />;
     case 'rules':
       return id ? <RuleEditPage id={id} copyFrom={query.get('from')} /> : <RulesPage />;
@@ -66,6 +69,8 @@ function Routes() {
       return <SettingsPage />;
     case 'users':
       return isAdmin(user) ? <UsersPage /> : <HomePage />;
+    case 'clubs':
+      return isAdmin(user) ? <ClubsPage /> : <HomePage />;
     default:
       return <HomePage />;
   }

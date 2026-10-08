@@ -3,6 +3,8 @@ import { createUser, getMatchAccess, listUsers, setMatchAccess, updateUser } fro
 import { isId, json, type Env } from './http';
 import { sync } from './sync';
 import { getPublicStats, manageStatsLink } from './publicStats';
+import { manageClub } from './clubs';
+import { managePlayer, managePlayerNotes } from './players';
 
 export default {
   async fetch(req, env): Promise<Response> {
@@ -26,6 +28,13 @@ export default {
     }
 
     if (user.role !== 'admin') return json({ error: 'forbidden' }, 403);
+    if (path === '/api/clubs' && ['GET', 'POST'].includes(req.method)) return manageClub(req, env);
+    const clubMatch = path.match(/^\/api\/clubs\/([^/]+)$/);
+    if (clubMatch && isId(clubMatch[1]) && ['PATCH', 'DELETE'].includes(req.method)) return manageClub(req, env, clubMatch[1]);
+    const playerManagement = path.match(/^\/api\/players\/([^/]+)\/management$/);
+    if (playerManagement && isId(playerManagement[1]) && req.method === 'PATCH') return managePlayer(req, env, playerManagement[1]);
+    const playerNotes = path.match(/^\/api\/players\/([^/]+)\/notes$/);
+    if (playerNotes && isId(playerNotes[1]) && ['GET', 'PATCH'].includes(req.method)) return managePlayerNotes(req, env, playerNotes[1]);
     if (path === '/api/users' && req.method === 'GET') return listUsers(env);
     if (path === '/api/users' && req.method === 'POST') return createUser(req, env);
     const userMatch = path.match(/^\/api\/users\/([^/]+)$/);

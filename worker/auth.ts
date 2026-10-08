@@ -1,4 +1,5 @@
 import { isPassword, json, readJson, type Env, type User } from './http';
+import { ACCOUNT_SELECT, accountData, type AccountRow } from './access';
 
 const PBKDF2_ITERATIONS = 100_000; // Workers' PBKDF2 maximum.
 const SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000;
@@ -45,15 +46,16 @@ const bearer = (req: Request) => {
 export async function authenticate(req: Request, env: Env): Promise<User | null> {
   const token = bearer(req);
   if (!token || token.length > 100) return null;
-  return env.DB.prepare(
-    `SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+  const row = await env.DB.prepare(
+    `${ACCOUNT_SELECT} JOIN sessions s ON u.id = s.user_id
      WHERE s.token_hash = ?1 AND s.expires_at > ?2 AND u.disabled_at IS NULL`,
   )
     .bind(await sha256(token), Date.now())
-    .first<User>();
+    .first<AccountRow>();
+  return row ? accountData(row) : null;
 }
 
-interface UserRow extends User {
+interface UserRow extends AccountRow {
   password_hash: string | null;
   disabled_at: number | null;
   failed_logins: number;
@@ -68,7 +70,7 @@ export async function login(req: Request, env: Env): Promise<Response> {
     return json({ error: 'Invalid username or password.' }, 401);
   }
   const now = Date.now();
-  const user = await env.DB.prepare('SELECT * FROM users WHERE username = ?1').bind(username.trim()).first<UserRow>();
+  const user = await env.DB.prepare(`${ACCOUNT_SELECT} WHERE u.username = ?1`).bind(username.trim()).first<UserRow>();
   if (!user || user.disabled_at) {
     await hashPassword(password); // Same cost as a real check, so response time doesn't reveal usernames.
     return json({ error: 'Invalid username or password.' }, 401);
@@ -101,7 +103,7 @@ export async function login(req: Request, env: Env): Promise<Response> {
     ),
     env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?1').bind(now),
   ]);
-  return json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  return json({ token, user: accountData(user) });
 }
 
 export async function logout(req: Request, env: Env): Promise<Response> {

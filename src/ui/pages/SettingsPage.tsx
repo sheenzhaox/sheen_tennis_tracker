@@ -59,9 +59,10 @@ export default function SettingsPage() {
           Logged in as <strong>{user.username}</strong> <span className="muted">({user.role})</span>
         </p>
         {isAdmin(user) && (
-          <a className="btn" href="#/users">
-            Manage users
-          </a>
+          <div className="form">
+            <a className="btn" href="#/users">Manage users</a>
+            <a className="btn" href="#/clubs">Manage clubs</a>
+          </div>
         )}
 
         <h2>Cloud sync</h2>

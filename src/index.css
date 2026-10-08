@@ -393,6 +393,15 @@ legend {
   font-weight: 600;
 }
 
+.club-picker {
+  min-width: 0;
+}
+
+.club-picker label {
+  min-height: 2.75rem;
+  overflow-wrap: anywhere;
+}
+
 .player-suggestions {
   list-style: none;
   margin: 0;

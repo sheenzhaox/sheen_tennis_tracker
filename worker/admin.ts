@@ -1,46 +1,94 @@
 import { hashPassword } from './auth';
 import { isId, isPassword, isUsername, json, readJson, type Env, type User } from './http';
+import { ACCOUNT_SELECT, accountData, bumpAccess, type AccountRow } from './access';
+import type { UserRole } from '../src/model/types';
 
-interface UserListRow {
-  id: string;
-  username: string;
-  role: 'admin' | 'user';
+interface UserListRow extends AccountRow {
   disabled_at: number | null;
   created_at: number;
 }
 
 export async function listUsers(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare('SELECT id, username, role, disabled_at, created_at FROM users ORDER BY username').all<UserListRow>();
+  const { results } = await env.DB.prepare(`${ACCOUNT_SELECT} ORDER BY u.username`).all<UserListRow>();
   return json({
-    users: results.map((u) => ({ id: u.id, username: u.username, role: u.role, disabled: !!u.disabled_at, createdAt: u.created_at })),
+    users: results.map((u) => ({ ...accountData(u), disabled: !!u.disabled_at, createdAt: u.created_at })),
   });
 }
 
-const isRole = (v: unknown): v is 'admin' | 'user' => v === 'admin' || v === 'user';
+const isRole = (v: unknown): v is UserRole => v === 'admin' || v === 'user' || v === 'coach';
+
+export async function validateClubs(db: D1Database, value: unknown): Promise<string[] | Response> {
+  if (!Array.isArray(value) || value.length > 100 || !value.every(isId)) return json({ error: 'Invalid clubs.' }, 400);
+  const ids = [...new Set(value)];
+  const { results } = await db.prepare('SELECT id FROM clubs WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?1))')
+    .bind(JSON.stringify(ids)).all<{ id: string }>();
+  return results.length === ids.length ? ids : json({ error: 'One or more clubs no longer exist.' }, 400);
+}
+
+async function validatePlayerLink(db: D1Database, playerId: unknown, userId?: string): Promise<Response | null> {
+  if (!isId(playerId)) return json({ error: 'Choose a system-level player.' }, 400);
+  const player = await db.prepare('SELECT id FROM players WHERE id = ?1 AND owner_id IS NULL AND deleted_at IS NULL').bind(playerId).first();
+  if (!player) return json({ error: 'The linked player must be a live system-level player.' }, 400);
+  const linked = await db.prepare('SELECT id FROM users WHERE player_id = ?1 AND id != ?2').bind(playerId, userId ?? '').first();
+  return linked ? json({ error: 'This player is already linked to an account.' }, 409) : null;
+}
 
 export async function createUser(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown }>(req);
+  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown; playerId?: unknown; clubIds?: unknown }>(req);
   if (body instanceof Response) return body;
   if (!isUsername(body.username)) return json({ error: 'Username: 2-32 letters, digits, ".", "-" or "_".' }, 400);
   if (!isPassword(body.password)) return json({ error: 'Password must be 8-200 characters.' }, 400);
-  const role = isRole(body.role) ? body.role : 'user';
+  if (body.role !== undefined && !isRole(body.role)) return json({ error: 'Invalid role.' }, 400);
+  const role = body.role ?? 'user';
+  const playerId = body.playerId ?? null;
+  if (role === 'user' || playerId !== null) {
+    const error = await validatePlayerLink(env.DB, playerId);
+    if (error) return error;
+  }
+  const clubs = await validateClubs(env.DB, body.clubIds ?? []);
+  if (clubs instanceof Response) return clubs;
   const id = crypto.randomUUID();
-  const res = await env.DB.prepare(
-    'INSERT INTO users (id, username, role, password_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT DO NOTHING',
-  )
-    .bind(id, body.username, role, await hashPassword(body.password), Date.now())
-    .run();
-  if (!res.meta.changes) return json({ error: 'Username already taken.' }, 409);
+  const [res] = await env.DB.batch([
+    env.DB.prepare(
+      'INSERT INTO users (id, username, role, password_hash, created_at, player_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT DO NOTHING',
+    ).bind(id, body.username, role, await hashPassword(body.password), Date.now(), playerId),
+    env.DB.prepare(`INSERT INTO user_clubs (user_id, club_id) SELECT ?1, value FROM json_each(?2)
+      WHERE EXISTS (SELECT 1 FROM users WHERE id = ?1)`).bind(id, JSON.stringify(role === 'coach' ? clubs : [])),
+    bumpAccess(env.DB),
+  ]);
+  if (!res.meta.changes) return json({ error: 'Username already taken or player already linked.' }, 409);
   return json({ id });
 }
 
 export async function updateUser(req: Request, env: Env, admin: User, id: string): Promise<Response> {
-  const body = await readJson<{ password?: unknown; role?: unknown; disabled?: unknown }>(req);
+  const body = await readJson<{ password?: unknown; role?: unknown; disabled?: unknown; playerId?: unknown; clubIds?: unknown }>(req);
   if (body instanceof Response) return body;
-  if (id === admin.id && (body.role === 'user' || body.disabled === true)) {
+  if (id === admin.id && ((body.role !== undefined && body.role !== 'admin') || body.disabled === true)) {
     return json({ error: "You can't demote or disable your own account." }, 400);
   }
   const stmts: D1PreparedStatement[] = [];
+  const current = await env.DB.prepare('SELECT role, player_id FROM users WHERE id = ?1')
+    .bind(id).first<{ role: UserRole; player_id: string | null }>();
+  if (!current) return json({ error: 'User not found.' }, 404);
+  if (body.role === 'user' && current.role !== 'user' && body.playerId === undefined) {
+    const error = await validatePlayerLink(env.DB, current.player_id, id);
+    if (error) return error;
+  }
+  if (body.disabled !== undefined && typeof body.disabled !== 'boolean') return json({ error: 'Invalid disabled flag.' }, 400);
+  if (body.playerId !== undefined) {
+    if (body.playerId !== null || (body.role ?? current.role) === 'user') {
+      const error = await validatePlayerLink(env.DB, body.playerId, id);
+      if (error) return error;
+    }
+    stmts.push(env.DB.prepare('UPDATE users SET player_id = ?2 WHERE id = ?1').bind(id, body.playerId));
+  }
+  if (body.clubIds !== undefined) {
+    const clubs = await validateClubs(env.DB, body.clubIds);
+    if (clubs instanceof Response) return clubs;
+    stmts.push(env.DB.prepare('DELETE FROM user_clubs WHERE user_id = ?1').bind(id));
+    stmts.push(env.DB.prepare('INSERT INTO user_clubs (user_id, club_id) SELECT ?1, value FROM json_each(?2)')
+      .bind(id, JSON.stringify((body.role ?? current.role) === 'coach' ? clubs : [])));
+  }
   if (body.password !== undefined) {
     if (!isPassword(body.password)) return json({ error: 'Password must be 8-200 characters.' }, 400);
     stmts.push(env.DB.prepare('UPDATE users SET password_hash = ?2, failed_logins = 0, locked_until = NULL WHERE id = ?1').bind(id, await hashPassword(body.password)));
@@ -53,9 +101,17 @@ export async function updateUser(req: Request, env: Env, admin: User, id: string
     stmts.push(env.DB.prepare('UPDATE users SET disabled_at = ?2 WHERE id = ?1').bind(id, body.disabled === true ? Date.now() : null));
   }
   if (!stmts.length) return json({ error: 'nothing to update' }, 400);
+  stmts.push(bumpAccess(env.DB));
   // Password reset or disabling signs the user out everywhere.
   if (body.password !== undefined || body.disabled === true) stmts.push(env.DB.prepare('DELETE FROM sessions WHERE user_id = ?1').bind(id));
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('UNIQUE constraint failed: users.player_id')) {
+      return json({ error: 'This player is already linked to an account.' }, 409);
+    }
+    throw err;
+  }
   return json({ ok: true });
 }
 

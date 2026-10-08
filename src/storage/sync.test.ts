@@ -14,6 +14,8 @@ const store = vi.hoisted(() => {
     const records = rows;
     return {
       get: async (id: string) => records.get(id),
+      toArray: async () => [...records.values()],
+      delete: async (id: string) => { records.delete(id); },
       put: async (row: Record<string, unknown>) => { records.set(String(row.id), row); },
       update: async (id: string, fields: Record<string, unknown>) => {
         const row = records.get(id);
@@ -22,6 +24,7 @@ const store = vi.hoisted(() => {
       where: (key: string) => ({
         equals: (value: unknown) => ({
           toArray: async () => [...records.values()].filter((row) => row[key] === value),
+          delete: async () => { for (const [id, row] of records) if (row[key] === value) records.delete(id); },
         }),
       }),
     };
@@ -33,6 +36,9 @@ vi.mock('./db', () => ({
   SYNC_TABLES: ['players', 'ruleSets', 'matches', 'points'],
   onLocalChange: vi.fn(),
   db: {
+    get matches() { return store.table('matches'); },
+    get points() { return store.table('points'); },
+    get players() { return store.table('players'); },
     table: store.table,
     transaction: async (_mode: string, _tables: unknown[], action: () => Promise<void>) => action(),
     meta: {
@@ -139,5 +145,62 @@ describe('sync ownership metadata', () => {
     await syncNow();
     expect(store.meta.has('ownershipMetadataSynced')).toBe(false);
     expect(store.meta.get('cursor')).toBe(10_000);
+  });
+
+  it('refreshes club/link metadata and notes even without a newer shared profile timestamp', async () => {
+    await store.table('players').put({ id: 'player', name: 'Test1', updatedAt: 100, dirty: 0, notes: 'Old shared note', notesUpdatedAt: 50 });
+    const r = remotePlayer();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response([{
+      ...r, data: { ...r.data, clubIds: ['club'], linkedUserId: 'alice', createdById: 'admin', notes: 'My private note', notesUpdatedAt: 200 },
+    }])));
+    await syncNow();
+    expect(await store.table('players').get('player')).toMatchObject({
+      updatedAt: 100, clubIds: ['club'], linkedUserId: 'alice', notes: 'My private note', notesUpdatedAt: 200,
+    });
+  });
+
+  it('preserves a note edited during sync while accepting a newer shared profile', async () => {
+    await store.table('players').put({ id: 'player', name: 'Old profile', updatedAt: 100, dirty: 1, notes: 'Draft', notesUpdatedAt: 300 });
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => {
+      await store.table('players').update('player', { notes: 'Edited during sync', notesUpdatedAt: 301 });
+      const r = remotePlayer(500);
+      return response([{ ...r, data: { ...r.data, notes: 'Older note', notesUpdatedAt: 200, clubIds: [] } }]);
+    }));
+    await syncNow();
+    expect(await store.table('players').get('player')).toMatchObject({
+      name: 'Test1', updatedAt: 500, notes: 'Edited during sync', notesUpdatedAt: 301, dirty: 1, notesOnly: true,
+    });
+  });
+
+  it('removes formerly privileged private profile fields when only a match-name reference is authorized', async () => {
+    await store.table('players').put({ id: 'player', name: 'Private opponent', updatedAt: 100, dirty: 0, gender: 'female', email: 'private@example.com', rating: 'Private rating', notes: 'Old private note' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response([{
+      kind: 'players', id: 'player', updatedAt: 100, deletedAt: null,
+      data: { id: 'player', name: 'Private opponent', ownerId: 'bob', referenceOnly: true, notes: '', notesUpdatedAt: 0, clubIds: [] },
+    }])));
+    await syncNow();
+    const row = await store.table('players').get('player');
+    expect(row).toMatchObject({ name: 'Private opponent', referenceOnly: true, notes: '' });
+    expect(row?.email).toBeUndefined();
+    expect(row?.rating).toBeUndefined();
+    expect(row?.gender).toBeUndefined();
+  });
+
+  it('purges removed club access and refreshes session permissions without dropping an unsynced own match', async () => {
+    await store.table('matches').put({ id: 'club-match', updatedAt: 100, ownerId: 'bob', dirty: 0 });
+    await store.table('points').put({ id: 'point', matchId: 'club-match', updatedAt: 100 });
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => {
+      await store.table('matches').put({ id: 'own-new', updatedAt: 100, ownerId: 'alice', dirty: 1 });
+      return new Response(JSON.stringify({
+        records: [], cursor: 500, rejected: [], revoked: [], visibleMatchIds: [], visiblePlayerIds: [],
+        user: { ...user, role: 'coach', clubIds: [] }, accessRevision: 3,
+      }));
+    }));
+    await syncNow();
+    expect(await store.table('matches').get('club-match')).toBeUndefined();
+    expect(await store.table('points').get('point')).toBeUndefined();
+    expect(await store.table('matches').get('own-new')).toBeDefined();
+    expect(store.meta.get('session')).toMatchObject({ user: { role: 'coach', clubIds: [] } });
+    expect(store.meta.get('accessRevision')).toBe(3);
   });
 });

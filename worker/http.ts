@@ -1,3 +1,5 @@
+import type { UserRole } from '../src/model/types';
+
 export interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
@@ -9,7 +11,9 @@ export interface Env {
 export interface User {
   id: string;
   username: string;
-  role: 'admin' | 'user';
+  role: UserRole;
+  playerId?: string;
+  clubIds?: string[];
 }
 
 export const json = (body: unknown, status = 200) =>

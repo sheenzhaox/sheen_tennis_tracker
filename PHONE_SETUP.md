@@ -52,9 +52,17 @@ Phone installation and offline behavior have not yet been field-tested for this 
 
 ## Players and Match Setup
 
-- **Players** shows only the players you can manage: normal users see their own players, while admins see admin-added shared players.
+- Accounts have **User**, **Coach**, or **Admin** roles. Only admins create accounts and clubs, using **Settings > Manage users / Manage clubs**. Create a system-level player before linking a new User account; a Coach account may have clubs without a player profile. Existing unlinked accounts remain usable until an admin assigns their profiles.
+- Players and coaches can belong to multiple clubs. Only admins change club memberships and player visibility/ownership. Club names must be unique, ignoring case.
+- **Players** shows your private players, your linked system profile, and players you originally created that an admin has promoted. Coaches additionally see system players in their assigned clubs. Admins see and manage all players, including users' private lists.
+- New players require **Name** and **Gender** (**Male** or **Female**). **Email** is optional but recommended for future account management; email login is not implemented. Email is visible only to admins and the private owner or linked account. Older profiles without gender remain available; choose a gender when saving profile changes.
+- You may edit your linked player profile, but cannot delete it or change its clubs/ownership. A user-created player is private until an admin explicitly makes it system-level. Previous free-text club names on private players are retained as historical information, not club memberships.
+- **Notes (only seen by you)** are personal to your account; admins may also view/manage them. Different users' notes on the same player are separate. Promoting a player never promotes their notes. You can save your private notes even when the player profile is view only.
 - In new match setup, type a name into **Player A** or **Player B**. After three characters, suggestions match anywhere in the name, ignoring case, across your players and admin-added players.
-- Select a suggestion to use that player. The same player cannot be selected for both sides. If no name matches, use **+ Add new player**; at least three characters are required here. A normal user's new player is private; an admin's new player is shared.
+- Select a suggestion to use that player. The same player cannot be selected for both sides. If no name matches, choose gender and use **+ Add new player**; at least three name characters are required here. A normal user's or coach's new player is private; an admin's new player is system-level.
+- Users see their own recorded matches and explicitly shared matches, not automatically every match involving their linked profile. Coaches additionally see matches involving at least one system player in any of their assigned clubs. Coaches can view match/player statistics and manage public stats links for those club matches, but can edit, record, finalise, or delete only their own matches. Admins can manage all matches.
+- Open a player and tap **Player stats** for combined statistics across matches visible to your account. Match count includes scheduled/partial matches; wins/losses require a completed match with a known winner. Each match keeps its own scoring rules, and Lucky ball rules remain unchanged.
+- Membership and role changes refresh on sync. Revoked club access removes cached matches/points at the next successful sync; it does not delete them from the cloud. Data already viewed or stored offline cannot be remotely erased while a device is disconnected. Existing public links remain active until explicitly revoked.
 
 ## Rally Shot Details
 

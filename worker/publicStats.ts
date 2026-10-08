@@ -1,5 +1,6 @@
 import type { Match, Point, PublicStats, Rules } from '../src/model/types';
 import { json, readJson, type Env, type User } from './http';
+import { mayShareStats } from './access';
 
 export const isStatsToken = (token: string) => /^[a-f0-9]{64}$/.test(token);
 
@@ -12,7 +13,7 @@ export async function manageStatsLink(req: Request, env: Env, user: User, matchI
   const match = await env.DB.prepare('SELECT owner_id FROM matches WHERE id = ?1 AND deleted_at IS NULL')
     .bind(matchId).first<{ owner_id: string | null }>();
   if (!match) return json({ error: 'Match not synced yet or no longer available.' }, 404);
-  if (user.role !== 'admin' && match.owner_id !== user.id) return json({ error: 'forbidden' }, 403);
+  if (!await mayShareStats(env.DB, user, matchId, match.owner_id)) return json({ error: 'forbidden' }, 403);
 
   if (req.method === 'GET') {
     const link = await env.DB.prepare('SELECT token FROM public_stats_links WHERE match_id = ?1 AND revoked_at IS NULL')

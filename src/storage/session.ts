@@ -1,10 +1,13 @@
 import { clearLocalData, countDirty, db } from './db';
 import { syncNow } from './sync';
+import type { UserRole } from '../model/types';
 
 export interface SessionUser {
   id: string;
   username: string;
-  role: 'admin' | 'user';
+  role: UserRole;
+  playerId?: string;
+  clubIds?: string[];
 }
 
 export interface Session {

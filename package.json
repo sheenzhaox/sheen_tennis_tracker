@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "wrangler dev --port 8787",
-    "build": "tsc --noEmit && tsc --noEmit -p worker && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p worker && tsc --noEmit -p migrations && vite build",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261001.1",
+    "@types/node": "^24.19.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vite-pwa/assets-generator": "^1.0.4",

@@ -4,7 +4,7 @@ import { countDirty, db } from '../storage/db';
 import { subscribeSync, type SyncState } from '../storage/sync';
 import type { Session } from '../storage/session';
 import { BUILT_IN_RULE_SETS } from '../model/rules';
-import type { Player, RuleSet } from '../model/types';
+import type { Club, Player, RuleSet } from '../model/types';
 import { isListedPlayer, useUser } from './user';
 
 export function useAllRuleSets(): RuleSet[] {
@@ -16,6 +16,10 @@ export function useAllRuleSets(): RuleSet[] {
 /** All synced players, including other users' private players referenced by visible matches. */
 export function useAllPlayers(): Player[] | undefined {
   return useLiveQuery(() => db.players.orderBy('name').filter((p) => !p.deletedAt).toArray(), []);
+}
+
+export function useClubs(): Club[] | undefined {
+  return useLiveQuery(() => db.clubs.orderBy('name').filter((club) => !club.deletedAt).toArray(), []);
 }
 
 /** Manageable players shown in the signed-in user's Players page. */

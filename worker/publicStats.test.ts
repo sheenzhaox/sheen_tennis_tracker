@@ -51,6 +51,18 @@ describe('public stats links', () => {
     }
   });
 
+  it('allows a club coach to share stats but rejects coaches outside the club', async () => {
+    for (const permitted of [false, true]) {
+      const { env, first, prepare } = setup();
+      first.mockResolvedValueOnce({ owner_id: owner.id }).mockResolvedValueOnce(permitted ? { id: match.id } : null);
+      const response = await manageStatsLink(new Request('https://example.com', { method: 'POST' }),
+        env, { id: 'coach', username: 'coach', role: 'coach' }, match.id);
+      expect(response.status).toBe(permitted ? 200 : 403);
+      expect(prepare.mock.calls[1][0]).toContain("coach.role = 'coach'");
+      expect(prepare.mock.calls[1][0]).not.toContain('match_access');
+    }
+  });
+
   it('retrieves the same active token for the owner and admin on subsequent visits', async () => {
     for (const user of [owner, { ...owner, id: 'admin', role: 'admin' as const }]) {
       const { env, first } = setup();

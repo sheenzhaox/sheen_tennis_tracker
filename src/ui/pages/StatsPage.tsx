@@ -4,8 +4,8 @@ import Header from '../components/Header';
 import StatsShare from '../components/StatsShare';
 import { finalisationLabel } from '../../model/match';
 import { db, isLive, pointsForMatch } from '../../storage/db';
-import { usePlayerNames } from '../hooks';
-import { canEditMatch, useUser } from '../user';
+import { useAllPlayers, usePlayerNames } from '../hooks';
+import { canShareStats, useUser } from '../user';
 import {
   errorTypeStats,
   filterSets,
@@ -23,6 +23,7 @@ import {
   type SideFilter,
   type SituationFilter,
   type StrokeFilter,
+  type PointContext,
 } from '../../stats/matchStats';
 import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
 
@@ -108,6 +109,7 @@ export default function StatsPage({ id }: { id: string }) {
   }, [id]);
   const points = useLiveQuery(() => pointsForMatch(id), [id]);
   const names = usePlayerNames();
+  const players = useAllPlayers() ?? [];
   if (match === undefined || points === undefined) return null;
   if (match === null) {
     return (
@@ -120,11 +122,13 @@ export default function StatsPage({ id }: { id: string }) {
   return <StatsView
     match={match} points={points}
     nameA={names.get(match.playerAId) ?? 'Player A'} nameB={names.get(match.playerBId) ?? 'Player B'}
-    back={`/match/${id}`} sharing={canEditMatch(user, match) ? <StatsShare key={id} matchId={id} /> : undefined}
+    back={`/match/${id}`} sharing={canShareStats(user, match, players) ? <StatsShare key={id} matchId={id} /> : undefined}
   />;
 }
 
-export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing }: PublicStats & { back?: string; sharing?: ReactNode }) {
+export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, contexts, aggregate }: PublicStats & {
+  back?: string; sharing?: ReactNode; contexts?: PointContext[]; aggregate?: string;
+}) {
   const [server, setServer] = useState<Side>('A');
   const [side, setSide] = useState<SideFilter>('all');
   const [situation, setSituation] = useState<SituationFilter>('all');
@@ -135,11 +139,11 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
   const [uePosition, setUePosition] = useState<PositionFilter>('all');
   const [sets, setSets] = useState<Partial<Record<Section, number[]>>>({});
 
-  const ctxs = pointContexts(match, points);
+  const ctxs = contexts ?? pointContexts(match, points);
   const played = setOptions(ctxs);
   const sel = (s: Section) => sets[s] ?? [];
   const inSets = (s: Section) => filterSets(ctxs, sel(s));
-  const setChips = (s: Section) => <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
+  const setChips = (s: Section) => contexts ? null : <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
   const sum = summary(inSets('summary'));
   const loc = serveLocationStats(inSets('serve'), server, side, situation);
   const strokes = strokeStats(inSets('stroke'), strokePlayer, games);
@@ -154,14 +158,15 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
 
   return (
     <>
-      <Header title="Stats" back={back} />
+      <Header title={aggregate ? 'Player stats' : 'Stats'} back={back} />
       <main className="page stats">
         <p className="muted">
-          {a} vs {b} · {points.length} points
+          {aggregate ? `${a} · ${aggregate}` : `${a} vs ${b}`} · {points.length} points
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
-          {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
+          {!contexts && played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
-        {match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
+        {!contexts && match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
+        {aggregate && <p className="muted">Combined recorded-point statistics from matches visible to your account. Each match uses its own scoring rules; scheduled and partial matches are included in the match count.</p>}
         {points.some(isLuckyBall) && <p className="muted small">
           Lucky ball points count only in total Winners and are excluded from all other stats. The match score is unchanged.
         </p>}

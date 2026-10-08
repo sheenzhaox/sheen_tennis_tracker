@@ -1,5 +1,19 @@
 export type Handedness = 'right' | 'left';
 export type Backhand = 'one-handed' | 'two-handed';
+export type UserRole = 'user' | 'coach' | 'admin';
+export type Gender = 'male' | 'female';
+export const GENDERS: { value: Gender; label: string }[] = [
+  { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' },
+];
+export const isPlayerEmail = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+export interface Club extends Syncable {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
 
 /** Fields used by cloud sync; deleted records are kept as tombstones so deletes propagate. */
 export interface Syncable {
@@ -10,11 +24,24 @@ export interface Syncable {
 export interface Player extends Syncable {
   id: string;
   name: string;
+  /** Missing only on profiles created before gender became required. */
+  gender?: Gender;
+  email?: string;
   handedness?: Handedness;
   backhand?: Backhand;
   rating?: string;
   club?: string;
+  legacyClub?: string;
+  clubIds?: string[];
+  linkedUserId?: string;
+  createdById?: string;
+  /** A private opponent delivered only to resolve a visible match's name. */
+  referenceOnly?: boolean;
+  /** This viewer's private note, never part of the shared profile. */
   notes?: string;
+  notesUpdatedAt?: number;
+  /** Local sync marker for changing only this user's private note. */
+  notesOnly?: boolean;
   /** Set by the server: user who added the player (private to them). Unset = added by an admin, visible to everyone. */
   ownerId?: string;
   createdAt: number;

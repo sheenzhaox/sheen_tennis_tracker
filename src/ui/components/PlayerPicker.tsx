@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import type { Player } from '../../model/types';
+import { GENDERS, isPlayerEmail, type Gender, type Player } from '../../model/types';
 import { newId, saveRecord } from '../../storage/db';
 import { isAdmin, useUser } from '../user';
 
@@ -26,12 +26,15 @@ export default function PlayerPicker({ label, value, onChange, players, otherId,
   const [activeId, setActiveId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [email, setEmail] = useState('');
   const activeOption = useRef<HTMLButtonElement>(null);
   const matches = playerSuggestions(players, name);
   const selectable = matches.filter((player) => player.id !== otherId);
   const active = selectable.find((player) => player.id === activeId) ?? selectable[0];
   const expanded = open && matches.length > 0;
-  const canAdd = !loading && !value && name.trim().length >= 3 && matches.length === 0;
+  const offerAdd = !loading && !value && name.trim().length >= 3 && matches.length === 0;
+  const canAdd = offerAdd && !!gender;
 
   useEffect(() => {
     if (value && selectedName) setName(selectedName);
@@ -48,22 +51,28 @@ export default function PlayerPicker({ label, value, onChange, players, otherId,
     setOpen(false);
     setActiveId('');
     setError('');
+    setGender('');
+    setEmail('');
   }
 
   async function add() {
     if (busy || !canAdd) return;
+    if (email.trim() && !isPlayerEmail(email.trim())) return setError('Enter a valid email address or leave it blank.');
     setBusy(true);
     setError('');
     try {
       const now = Date.now();
       const player: Player = {
-        id: newId(), name: name.trim(), ownerId: isAdmin(user) ? undefined : user.id,
+        id: newId(), name: name.trim(), gender: gender || undefined, email: email.trim() || undefined,
+        ownerId: isAdmin(user) ? undefined : user.id,
         createdAt: now, updatedAt: now,
       };
       await saveRecord('players', player);
       setName(player.name);
       onChange(player.id);
       setOpen(false);
+      setGender('');
+      setEmail('');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -89,6 +98,7 @@ export default function PlayerPicker({ label, value, onChange, players, otherId,
       event.preventDefault();
       if (expanded && active) choose(active);
       else if (canAdd) void add();
+      else if (offerAdd) setError('Choose gender for the new player.');
     }
   }
 
@@ -98,6 +108,7 @@ export default function PlayerPicker({ label, value, onChange, players, otherId,
     }}>
       <label htmlFor={id}>{label}</label>
       <input id={id} role="combobox" autoComplete="off" value={name}
+        maxLength={200}
         placeholder="Type at least 3 characters" disabled={busy || loading}
         aria-autocomplete="list" aria-expanded={expanded} aria-controls={`${id}-suggestions`}
         aria-activedescendant={expanded && active ? `${id}-${active.id}` : undefined}
@@ -122,16 +133,25 @@ export default function PlayerPicker({ label, value, onChange, players, otherId,
                 <span>{player.name}</span>
                 <span className="muted small">
                   {player.id === otherId ? 'Already selected'
-                    : !player.ownerId ? 'Admin player' : player.ownerId === user.id ? 'My player' : 'Match player'}
+                    : !player.ownerId ? 'System player' : player.ownerId === user.id ? 'My player' : 'Match player'}
                 </span>
               </button>
             </li>
           ))}
         </ul>
       )}
-      {canAdd && <>
+      {offerAdd && <>
         <span className="muted small">No matching player found.</span>
-        <button className="btn" type="button" disabled={busy} onClick={() => void add()}>
+        <label>{label} new player gender *
+          <select value={gender} disabled={busy} onChange={(event) => setGender(event.target.value as Gender | '')}>
+            <option value="">Select gender</option>
+            {GENDERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label>{label} new player email (optional, recommended)
+          <input type="email" maxLength={254} value={email} disabled={busy} onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        <button className="btn" type="button" disabled={busy || !canAdd} onClick={() => void add()}>
           {busy ? 'Adding...' : `+ Add new player: ${name.trim()}`}
         </button>
       </>}
