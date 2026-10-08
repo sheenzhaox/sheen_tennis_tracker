@@ -5,6 +5,7 @@ import { computeScore, pointLabels } from '../../engine/score';
 import { pointsForMatch } from '../../storage/db';
 import {
   RETURN_DIRECTIONS,
+  RECORDED_SHOT_TYPES,
   RETURN_ERRORS,
   RETURN_STROKES,
   SERVE_LOCATIONS,
@@ -12,7 +13,6 @@ import {
   SERVE_TYPES,
   SHOT_DIRECTIONS,
   SHOT_POSITIONS,
-  SHOT_TYPES,
   STROKES,
   type Match,
   type Point,
@@ -54,7 +54,7 @@ function describeRally(r: RallyDetail, serverName: string, returnerName: string)
     label(RETURN_ERRORS, r.error),
     r.lucky ? 'Lucky ball' : undefined,
     label(SHOT_DIRECTIONS, r.direction),
-    label(SHOT_TYPES, r.shotType),
+    label(RECORDED_SHOT_TYPES, r.shotType),
     label(SHOT_POSITIONS, r.position),
   ];
   return parts.filter(Boolean).join(', ');

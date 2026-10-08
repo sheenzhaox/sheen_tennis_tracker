@@ -134,6 +134,24 @@ describe('match stats', () => {
     expect(errorTypeStats(ctxs, 'all', 'baseline').A.net).toBe(1);
   });
 
+  it('counts drive volleys, legacy topspin, and unspecified shots separately', () => {
+    const shots: Point[] = [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'topspin' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'none' })),
+    ];
+    const contexts = pointContexts(match, shots);
+    const winners = rallyWinnerStats(contexts, 'forehand');
+    expect(winners.shotType.A.drive_volley).toBe(1);
+    expect(winners.shotType.A.topspin).toBe(1);
+    expect(winners.shotType.A.none).toBe(1);
+    const types = shotTypeStats(contexts);
+    expect(types.A.drive_volley).toEqual({ winners: 1, errors: 1 });
+    expect(types.A.topspin).toEqual({ winners: 1, errors: 0 });
+    expect(types.A.none).toEqual({ winners: 1, errors: 0 });
+  });
+
   it('lists played sets incl. match tiebreak and filters by set', () => {
     const mtb: Match = { ...match, rules: { ...DEFAULT_RULES, finalSet: 'matchTiebreak' } };
     // A wins set 1 6-0, B wins set 2 6-0, then 3 match tiebreak points.

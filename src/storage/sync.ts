@@ -87,6 +87,18 @@ async function applyResponse(pushed: RemoteRecord[], res: SyncResponse, userId: 
       if (!SYNC_TABLES.includes(r.kind)) continue;
       const local = (await db.table(r.kind).get(r.id)) as LocalRecord | undefined;
       if (!local || r.updatedAt > local.updatedAt) await put(r);
+      else if (r.kind === 'players' || r.kind === 'matches') {
+        // Ownership is server-assigned and must arrive even when local content is newer or unchanged.
+        const ownerId = r.data.ownerId;
+        if (ownerId !== undefined && typeof ownerId !== 'string') throw new Error('Invalid ownership metadata from server.');
+        const metadata: { ownerId?: string; ownerName?: string } = { ownerId };
+        if (r.kind === 'matches') {
+          const ownerName = r.data.ownerName;
+          if (ownerName !== undefined && typeof ownerName !== 'string') throw new Error('Invalid owner name from server.');
+          metadata.ownerName = ownerName;
+        }
+        await db.table(r.kind).update(r.id, metadata);
+      }
     }
     for (const r of res.rejected ?? []) {
       if (!SYNC_TABLES.includes(r.kind)) continue;
@@ -112,7 +124,9 @@ async function doSync(): Promise<void> {
   setState({ ...state, status: 'syncing' });
 
   try {
-    let since = ((await db.meta.get('cursor'))?.value as number | undefined) ?? 0;
+    const ownershipSynced = (await db.meta.get('ownershipMetadataSynced'))?.value === true;
+    // Repair previously skipped ownership, including rows older than the incremental-sync window.
+    let since = ownershipSynced ? ((await db.meta.get('cursor'))?.value as number | undefined) ?? 0 : 0;
     const dirty: RemoteRecord[] = [];
     for (const kind of SYNC_TABLES) {
       const rows = (await db.table(kind).where('dirty').equals(1).toArray()) as (LocalRecord & Record<string, unknown>)[];
@@ -139,6 +153,7 @@ async function doSync(): Promise<void> {
       await db.meta.put({ key: 'cursor', value: since });
     } while (offset < dirty.length);
 
+    await db.meta.put({ key: 'ownershipMetadataSynced', value: true });
     setState({ status: 'idle', lastSyncedAt: Date.now() });
   } catch (e) {
     setState({ ...state, status: navigator.onLine ? 'error' : 'offline', message: e instanceof Error ? e.message : String(e) });

@@ -50,9 +50,14 @@ Phone installation and offline behavior have not yet been field-tested for this 
 - Do not log out, switch accounts, or clear browser/site data while changes are pending. Logging out removes local match data; unsynced changes can be lost.
 - Installing the app does not replace cloud sync or guarantee that the phone will retain local data indefinitely.
 
+## Rally Shot Details
+
+- Rally **Shot direction** uses **Down line**. Under **Shot type**, use **Drive volley** for a drive volley; Topspin is no longer offered for new points.
+- Stats keep older Topspin records as **Topspin (legacy)** when present in the selected data. Unspecified shot types appear as **Not set**, not Drive volley. These labels also apply to shared stats and point-log CSV exports.
+
 ## Finalising or Deleting a Match
 
-- On **Matches**, use the small **Finalise** button on the right of an in-progress match. Choose who won (Player 1 or Player 2), then choose **Player 1 retired**, **Player 2 retired**, or **Didn't record the remaining**, and confirm.
+- On **Matches**, use the small **Finalise** button on the right of an in-progress match. Choose who won, then choose **[first player's name] retired**, **[second player's name] retired**, or **Didn't record the remaining**, and confirm.
 - Finalising moves the match to **Finished** and keeps only the points you actually recorded. The saved winner and reason appear in the match and stats, including public stats links. Player 1 is the first player listed; Player 2 is the second.
 - Finalise from **Matches**, not the point recording screen. **Undo finalisation** on the tracker reopens the match without deleting any recorded points.
 - On **Matches**, use the small **Delete** button on the right and confirm to remove an in-progress or finished match and its recorded points. Scheduled matches can also be deleted. Deletion cannot be undone, and public stats links stop working once the deletion syncs.
@@ -73,5 +78,6 @@ Phone installation and offline behavior have not yet been field-tested for this 
 | No Add to Home Screen or Install option | Open the link directly in Safari on iPhone or Chrome on Android. Update the browser if needed. |
 | App asks you to log in | Connect to the internet and use the account supplied by the administrator. |
 | Matches are missing | Check that you are using the correct account, then use Settings > Sync now. Another user's match must be shared with your account before you can see it. Shared matches are view-only. |
+| A player you added is unexpectedly view-only | Refresh the updated app while online, sign in as the user who added it, then use Settings > Sync now. This refreshes server-assigned ownership without clearing local data. Admin-added shared players remain view-only for normal users. |
 | App will not open offline | Reconnect and open the installed app fully while online, then repeat the offline check. Do not clear site data if you have unsynced changes. |
 | Changes are not appearing on another phone | On the recording phone, reconnect and sync with no pending changes. Then open the app on the other phone and sync there too. |

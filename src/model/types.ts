@@ -123,7 +123,7 @@ export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error'
 export type RallyEnding = 'server_winner' | 'returner_winner' | 'server_error' | 'returner_error';
 export type Stroke = 'forehand' | 'backhand' | 'none';
 export type ShotDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'middle' | 'short_angle' | 'none';
-export type ShotType = 'topspin' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
+export type ShotType = 'topspin' | 'drive_volley' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
 export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
 
 /** Details of the last shot of a rally. */
@@ -199,20 +199,26 @@ export const STROKES: { value: Exclude<Stroke, 'none'>; label: string }[] = [
 
 export const SHOT_DIRECTIONS: { value: Exclude<ShotDirection, 'none'>; label: string }[] = [
   { value: 'crosscourt', label: 'Cross court' },
-  { value: 'down_the_line', label: 'Down the line' },
+  { value: 'down_the_line', label: 'Down line' },
   { value: 'inside_out', label: 'Inside out' },
   { value: 'inside_in', label: 'Inside in' },
   { value: 'middle', label: 'Middle' },
   { value: 'short_angle', label: 'Short angle' },
 ];
 
-export const SHOT_TYPES: { value: Exclude<ShotType, 'none'>; label: string }[] = [
-  { value: 'topspin', label: 'Topspin' },
+export const SHOT_TYPES: { value: Exclude<ShotType, 'none' | 'topspin'>; label: string }[] = [
+  { value: 'drive_volley', label: 'Drive volley' },
   { value: 'slice', label: 'Slice' },
   { value: 'volley', label: 'Volley' },
   { value: 'smash', label: 'Smash' },
   { value: 'lob', label: 'Lob' },
   { value: 'dropshot', label: 'Dropshot' },
+];
+
+export const RECORDED_SHOT_TYPES: { value: ShotType; label: string }[] = [
+  ...SHOT_TYPES,
+  { value: 'topspin', label: 'Topspin (legacy)' },
+  { value: 'none', label: 'Not set' },
 ];
 
 export const SHOT_POSITIONS: { value: Exclude<ShotPosition, 'none'>; label: string }[] = [

@@ -43,9 +43,16 @@ describe('pointLogCsv', () => {
       ...point, end: 'rally', serves: [{ result: 'in', location: 'none', type: 'none' }],
       rally: { count: 5, ending: 'server_winner', stroke: 'forehand', lucky: true, direction: 'crosscourt', shotType: 'topspin', position: 'baseline' },
     }]);
-    expect(csv).toContain('"Rally 5, Alice winner & forced error, Forehand, Lucky ball, Cross court, Topspin, Baseline"');
+    expect(csv).toContain('"Rally 5, Alice winner & forced error, Forehand, Lucky ball, Cross court, Topspin (legacy), Baseline"');
   });
 
+  it('exports drive volleys with the shorter rally direction label', () => {
+    const csv = pointLogCsv(props, [{
+      ...point, end: 'rally', serves: [{ result: 'in', location: 'none', type: 'none' }],
+      rally: { count: 4, ending: 'server_winner', stroke: 'forehand', direction: 'down_the_line', shotType: 'drive_volley', position: 'net' },
+    }]);
+    expect(csv).toContain('"Rally 4, Alice winner & forced error, Forehand, Down line, Drive volley, Net"');
+  });
   it('escapes names containing quotes, commas, and newlines, and protects formula-like names', () => {
     const csv = pointLogCsv({ ...props, nameA: 'Zo\u00eb, "Ace"\nZhao', nameB: '=1+1' }, [point]);
     expect(csv).toContain('"Zo\u00eb, ""Ace""\nZhao"');

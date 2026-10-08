@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FINALISE_REASONS, type FinaliseReason, type Match, type Side } from '../../model/types';
 import { finaliseMatch } from '../../storage/db';
+import { finaliseReasonLabel } from '../../model/match';
 
 export default function MatchFinalise({ match, nameA, nameB, disabled = false, compact = false }: {
   match: Match; nameA: string; nameB: string; disabled?: boolean; compact?: boolean;
@@ -56,7 +57,7 @@ export default function MatchFinalise({ match, nameA, nameB, disabled = false, c
                 {FINALISE_REASONS.map((option) => (
                   <button key={option.value} type="button" className={`btn ${reason === option.value ? 'btn-primary' : ''}`}
                     aria-pressed={reason === option.value} onClick={() => setReason(option.value)}>
-                    {option.label}
+                    {finaliseReasonLabel(option.value, nameA, nameB)}
                   </button>
                 ))}
               </fieldset>

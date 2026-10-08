@@ -23,7 +23,7 @@ import {
   type SituationFilter,
   type StrokeFilter,
 } from '../../stats/matchStats';
-import { SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, SHOT_TYPES, type PublicStats, type Side } from '../../model/types';
+import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
@@ -144,6 +144,9 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
   const strokes = strokeStats(inSets('stroke'), strokePlayer, games);
   const rw = rallyWinnerStats(inSets('winners'), winnerStroke);
   const shots = shotTypeStats(inSets('shots'));
+  const winnerShotTypes = RECORDED_SHOT_TYPES.filter((t) => t.value !== 'topspin' || rw.shotType.A.topspin + rw.shotType.B.topspin > 0);
+  const shotTypes = RECORDED_SHOT_TYPES.filter((t) => t.value !== 'topspin'
+    || shots.A.topspin.winners + shots.A.topspin.errors + shots.B.topspin.winners + shots.B.topspin.errors > 0);
   const errs = errorTypeStats(inSets('errors'), ueStroke, uePosition);
   const both = (f: (s: Side) => ReactNode): ReactNode[] => [f('A'), f('B')];
   const locLabel = (v: string) => SERVE_LOCATIONS.find((l) => l.value === v)?.label ?? 'Not set';
@@ -246,14 +249,14 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
           ]}
         />
         <Table head={['Shot direction', a, b]} rows={SHOT_DIRECTIONS.map((d) => [d.label, ...both((s) => rw.direction[s][d.value])])} />
-        <Table head={['Shot type', a, b]} rows={SHOT_TYPES.map((t) => [t.label, ...both((s) => rw.shotType[s][t.value])])} />
-        <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; shot type not set counts as Topspin.</p>
+        <Table head={['Shot type', a, b]} rows={winnerShotTypes.map((t) => [t.label, ...both((s) => rw.shotType[s][t.value])])} />
+        <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; unspecified shot types appear as Not set. Historical shot types appear only when recorded in the selected data.</p>
 
         <h2>Shot type</h2>
         {setChips('shots')}
         <Table
           head={['', `${a} W`, `${a} UE`, `${b} W`, `${b} UE`]}
-          rows={[...SHOT_TYPES, { value: 'none' as const, label: 'Not set' }].map((t) => [
+          rows={shotTypes.map((t) => [
             t.label,
             shots.A[t.value].winners,
             shots.A[t.value].errors,

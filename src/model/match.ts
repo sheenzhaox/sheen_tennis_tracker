@@ -7,10 +7,13 @@ export function finalisedMatch(match: Match, winner: Side, reason: FinaliseReaso
   return { ...match, status: 'completed', finishedAt: now, updatedAt: now, finalisation: { winner, reason } };
 }
 
+export function finaliseReasonLabel(reason: FinaliseReason, nameA: string, nameB: string): string {
+  return reason === 'player_a_retired' ? `${nameA} retired`
+    : reason === 'player_b_retired' ? `${nameB} retired` : "Didn't record the remaining";
+}
+
 export function finalisationLabel(match: Match, nameA: string, nameB: string): string | undefined {
   if (!match.finalisation) return undefined;
   const { winner, reason } = match.finalisation;
-  const reasonLabel = reason === 'player_a_retired' ? `${nameA} retired`
-    : reason === 'player_b_retired' ? `${nameB} retired` : "Didn't record the remaining";
-  return `${winner === 'A' ? nameA : nameB} wins the match · ${reasonLabel}`;
+  return `${winner === 'A' ? nameA : nameB} wins the match · ${finaliseReasonLabel(reason, nameA, nameB)}`;
 }

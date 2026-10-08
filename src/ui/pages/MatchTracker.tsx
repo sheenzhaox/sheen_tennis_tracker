@@ -284,21 +284,6 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
             </span>
           </div>
 
-          <div className="form point-note-entry">
-            <button type="button" className="btn btn-compact" disabled={busy}
-              aria-expanded={noteOpen} aria-controls="point-note"
-              onClick={() => setNoteOpen(!noteOpen)}>
-              {notes.trim() ? 'Note (added)' : 'Note'}
-            </button>
-            {noteOpen && (
-              <label>
-                Point observation
-                <textarea id="point-note" rows={3} value={notes} disabled={busy}
-                  onChange={(e) => setNotes(e.target.value)} placeholder="Add an observation for this point" />
-              </label>
-            )}
-          </div>
-
           {rally ? (
             <RallyEntry
               serverName={name(server)}
@@ -356,6 +341,22 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       <button type="button" className="btn undo-btn" disabled={!canUndo || busy} onClick={() => void undo()}>
         {match.finalisation ? 'Undo finalisation' : 'Undo'}
       </button>
+      {!winner && !finished && (
+        <div className="form point-note-entry">
+          <button type="button" className="btn btn-compact" disabled={busy}
+            aria-expanded={noteOpen} aria-controls="point-note"
+            onClick={() => setNoteOpen(!noteOpen)}>
+            {notes.trim() ? 'Note (added)' : 'Note'}
+          </button>
+          {noteOpen && (
+            <label>
+              Point observation
+              <textarea id="point-note" rows={3} value={notes} disabled={busy}
+                onChange={(e) => setNotes(e.target.value)} placeholder="Add an observation for this point" />
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="score-dock">
         <ScoreTable

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finalisationLabel, finalisedMatch } from './match';
+import { finalisationLabel, finalisedMatch, finaliseReasonLabel } from './match';
 import { FINALISE_REASONS, type Match, type Side } from './types';
 import { computeScore } from '../engine/score';
 
@@ -40,6 +40,9 @@ describe('manual match finalisation', () => {
   });
 
   it('uses the player names for retirement reasons', () => {
+    expect(finaliseReasonLabel('player_a_retired', 'Roger Federer', 'Rafael Nadal')).toBe('Roger Federer retired');
+    expect(finaliseReasonLabel('player_b_retired', 'Roger Federer', 'Rafael Nadal')).toBe('Rafael Nadal retired');
+    expect(finaliseReasonLabel('remaining_unrecorded', 'Roger Federer', 'Rafael Nadal')).toBe("Didn't record the remaining");
     expect(finalisationLabel(finalisedMatch(match, 'B', 'player_a_retired', 100), 'Alice', 'Bob'))
       .toBe('Bob wins the match · Alice retired');
     expect(finalisationLabel(finalisedMatch(match, 'A', 'player_b_retired', 100), 'Alice', 'Bob'))

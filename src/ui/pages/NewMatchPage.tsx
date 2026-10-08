@@ -7,7 +7,7 @@ import { SURFACES, type Match, type Player, type Surface } from '../../model/typ
 import { navigate } from '../router';
 import { useAllPlayers, useAllRuleSets } from '../hooks';
 import { todayIso } from '../format';
-import { canEditMatch, isListedPlayer, useUser } from '../user';
+import { canEditMatch, isAdmin, isListedPlayer, useUser } from '../user';
 
 const NEW_PLAYER = '__new__';
 
@@ -174,6 +174,7 @@ interface PickerProps {
 }
 
 function PlayerPicker({ label, value, onChange, players, otherId }: PickerProps) {
+  const user = useUser();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
 
@@ -182,7 +183,9 @@ function PlayerPicker({ label, value, onChange, players, otherId }: PickerProps)
     if (!trimmed) return;
     const now = Date.now();
     const id = newId();
-    await saveRecord<Player>('players', { id, name: trimmed, createdAt: now, updatedAt: now });
+    await saveRecord<Player>('players', {
+      id, name: trimmed, ownerId: isAdmin(user) ? undefined : user.id, createdAt: now, updatedAt: now,
+    });
     onChange(id);
     setName('');
     setAdding(false);

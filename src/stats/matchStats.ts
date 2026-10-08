@@ -1,5 +1,6 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
 import type { Match, Point, Rules, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
+import { RECORDED_SHOT_TYPES } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
@@ -265,7 +266,7 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
 
 export type ShotTypeStats = PerSide<Record<ShotType, WinnerErrorCount>>;
 
-const SHOT_TYPES: ShotType[] = ['topspin', 'slice', 'volley', 'smash', 'lob', 'dropshot', 'none'];
+const SHOT_TYPES = RECORDED_SHOT_TYPES.map((type) => type.value);
 
 /** Shot type of the last shot of each rally, split into winners and unforced errors. */
 export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
@@ -281,22 +282,22 @@ export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
 
 export interface RallyWinnerStats {
   direction: PerSide<Record<Exclude<ShotDirection, 'none'>, number>>;
-  shotType: PerSide<Record<Exclude<ShotType, 'none'>, number>>;
+  shotType: PerSide<Record<ShotType, number>>;
 }
 
 const DIRECTIONS: Exclude<ShotDirection, 'none'>[] = ['crosscourt', 'down_the_line', 'inside_out', 'inside_in', 'middle', 'short_angle'];
 
-/** Rally winners hit with one stroke, by direction (unset = middle) and shot type (unset = topspin). */
+/** Rally winners hit with one stroke, by direction (unset = middle) and recorded shot type. */
 export function rallyWinnerStats(ctxs: PointContext[], stroke: 'forehand' | 'backhand'): RallyWinnerStats {
   const dirs = () => Object.fromEntries(DIRECTIONS.map((d) => [d, 0])) as RallyWinnerStats['direction']['A'];
-  const types = () => Object.fromEntries(SHOT_TYPES.filter((t) => t !== 'none').map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
+  const types = () => Object.fromEntries(SHOT_TYPES.map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
   const out: RallyWinnerStats = { direction: { A: dirs(), B: dirs() }, shotType: { A: types(), B: types() } };
   for (const { point: p } of ctxs) {
     if (p.end !== 'rally' || !p.rally || p.rally.stroke !== stroke) continue;
     const { winnerBy } = pointOutcome(p);
     if (!winnerBy) continue;
     out.direction[winnerBy][p.rally.direction === 'none' ? 'middle' : p.rally.direction]++;
-    out.shotType[winnerBy][p.rally.shotType === 'none' ? 'topspin' : p.rally.shotType]++;
+    out.shotType[winnerBy][p.rally.shotType]++;
   }
   return out;
 }
