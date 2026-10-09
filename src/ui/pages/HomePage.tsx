@@ -32,6 +32,9 @@ export default function HomePage() {
         <a className="btn btn-big" href="#/players">
           Players
         </a>
+        <a className="btn btn-big" href="#/stats">
+          Stats &amp; Analysis
+        </a>
         <a className="btn btn-big" href="#/rules">
           Rules
         </a>

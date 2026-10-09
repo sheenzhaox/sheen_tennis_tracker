@@ -101,7 +101,7 @@ function SetChips({ options, value, onChange }: { options: SetOption[]; value: n
 
 type Section = 'summary' | 'serve' | 'stroke' | 'winners' | 'shots' | 'errors';
 
-export default function StatsPage({ id }: { id: string }) {
+export default function StatsPage({ id, returnTo }: { id: string; returnTo?: string | null }) {
   const user = useUser();
   const match = useLiveQuery(async () => {
     const m = await db.matches.get(id);
@@ -114,7 +114,7 @@ export default function StatsPage({ id }: { id: string }) {
   if (match === null) {
     return (
       <>
-        <Header title="Stats" back="/match" />
+        <Header title="Stats" back={returnTo ?? '/match'} />
         <main className="page"><p>Match not found.</p></main>
       </>
     );
@@ -122,12 +122,12 @@ export default function StatsPage({ id }: { id: string }) {
   return <StatsView
     match={match} points={points}
     nameA={names.get(match.playerAId) ?? 'Player A'} nameB={names.get(match.playerBId) ?? 'Player B'}
-    back={`/match/${id}`} sharing={canShareStats(user, match, players) ? <StatsShare key={id} matchId={id} /> : undefined}
+    back={returnTo ?? `/match/${id}`} sharing={canShareStats(user, match, players) ? <StatsShare key={id} matchId={id} /> : undefined}
   />;
 }
 
-export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, contexts, aggregate }: PublicStats & {
-  back?: string; sharing?: ReactNode; contexts?: PointContext[]; aggregate?: string;
+export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, controls, contexts, aggregate }: PublicStats & {
+  back?: string; sharing?: ReactNode; controls?: ReactNode; contexts?: PointContext[]; aggregate?: string;
 }) {
   const [server, setServer] = useState<Side>('A');
   const [side, setSide] = useState<SideFilter>('all');
@@ -160,13 +160,14 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
     <>
       <Header title={aggregate ? 'Player stats' : 'Stats'} back={back} />
       <main className="page stats">
+        {controls}
         <p className="muted">
           {aggregate ? `${a} · ${aggregate}` : `${a} vs ${b}`} · {points.length} points
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
           {!contexts && played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
         {!contexts && match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
-        {aggregate && <p className="muted">Combined recorded-point statistics from matches visible to your account. Each match uses its own scoring rules; scheduled and partial matches are included in the match count.</p>}
+        {aggregate && <p className="muted">Combined recorded-point statistics from selected completed matches visible to your account. Each match uses its own scoring rules.</p>}
         {points.some(isLuckyBall) && <p className="muted small">
           Lucky ball points count only in total Winners and are excluded from all other stats. The match score is unchanged.
         </p>}

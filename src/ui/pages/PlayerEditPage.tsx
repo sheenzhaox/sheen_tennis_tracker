@@ -6,7 +6,7 @@ import { GENDERS, isPlayerEmail, type Backhand, type Gender, type Handedness, ty
 import { navigate } from '../router';
 import { useClubs, usePlayerNames } from '../hooks';
 import { formatMatchDay } from '../format';
-import { canDeletePlayer, canEditPlayer, canSelectPlayer, isAdmin, useUser } from '../user';
+import { canDeletePlayer, canEditPlayer, canSelectPlayer, canViewPlayerStats, isAdmin, useUser } from '../user';
 import PlayerManagement from '../components/PlayerManagement';
 
 interface Props {
@@ -175,7 +175,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
         {player && (
           <section>
             <h2>Matches ({matches.length})</h2>
-            <a className="btn" href={`#/players/${player.id}/stats`}>Player stats</a>
+            {canViewPlayerStats(user, player) && <a className="btn" href={`#/players/${player.id}/stats`}>Player stats</a>}
             {matches.length === 0 ? (
               <p className="muted">No matches recorded yet.</p>
             ) : (

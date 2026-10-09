@@ -14,6 +14,9 @@ import LoginPage from './pages/LoginPage';
 import UsersPage from './pages/UsersPage';
 import ClubsPage from './pages/ClubsPage';
 import PlayerStatsPage from './pages/PlayerStatsPage';
+import AnalysisPage from './pages/AnalysisPage';
+import MatchStatsPage from './pages/MatchStatsPage';
+import StatsPlayersPage from './pages/StatsPlayersPage';
 import { useSession } from './hooks';
 import { isAdmin, UserContext, useUser } from './user';
 
@@ -56,17 +59,22 @@ function Routes() {
 
   switch (section) {
     case 'players':
-      if (id && action === 'stats') return <PlayerStatsPage id={id} />;
+      if (id && action === 'stats') return <PlayerStatsPage key={id} id={id} />;
       return id ? <PlayerEditPage id={id} returnTo={safeReturn(query.get('return'))} /> : <PlayersPage />;
     case 'rules':
       return id ? <RuleEditPage id={id} copyFrom={query.get('from')} /> : <RulesPage />;
     case 'match':
       if (id === 'new') return <NewMatchPage />;
       if (id && action === 'edit') return <NewMatchPage id={id} />;
-      if (id && action === 'stats') return <StatsPage id={id} />;
+      if (id && action === 'stats') return <StatsPage id={id} returnTo={safeReturn(query.get('return'))} />;
       return id ? <MatchPage id={id} /> : <MatchesPage />;
     case 'settings':
       return <SettingsPage />;
+    case 'stats':
+      if (id === 'matches') return <MatchStatsPage />;
+      if (id === 'players') return action ? <PlayerStatsPage key={action} id={decodeURIComponent(action)}
+        back={user.role === 'user' ? '/stats' : '/stats/players'} /> : <StatsPlayersPage />;
+      return <AnalysisPage />;
     case 'users':
       return isAdmin(user) ? <UsersPage key={id ?? 'directory'} id={id} /> : <HomePage />;
     case 'clubs':

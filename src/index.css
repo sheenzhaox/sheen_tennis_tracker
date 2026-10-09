@@ -345,6 +345,28 @@ h2 {
   height: 1.4rem;
 }
 
+.player-stats-controls .chip {
+  min-height: 2.75rem;
+}
+
+.stats-match-selection label.checkbox {
+  padding: 0.75rem;
+  min-height: 2.75rem;
+}
+
+.stats-match-selection input {
+  flex-shrink: 0;
+}
+
+.stats-match-selection label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stats-match-selection .muted {
+  display: block;
+}
+
 fieldset {
   border: none;
   margin: 0;
