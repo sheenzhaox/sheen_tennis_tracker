@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   errorTypeStats,
+  errorDirectionStats,
   filterSets,
   pointContexts,
   rallyWinnerStats,
@@ -150,6 +151,68 @@ describe('match stats', () => {
     expect(types.A.drive_volley).toEqual({ winners: 1, errors: 1 });
     expect(types.A.topspin).toEqual({ winners: 1, errors: 0 });
     expect(types.A.none).toEqual({ winners: 1, errors: 0 });
+  });
+
+  it('filters shot types by stroke while the default includes both strokes and unset strokes', () => {
+    const contexts = pointContexts(match, [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('B', 'A', 'rally', [serve('in')], rally('server_error', { stroke: 'forehand', shotType: 'slice' })),
+      point('A', 'B', 'rally', [serve('in')], rally('returner_winner', { stroke: 'backhand', shotType: 'slice' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { stroke: 'backhand', shotType: 'topspin' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { shotType: 'none' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { lucky: true, stroke: 'forehand', shotType: 'drive_volley' })),
+    ]);
+    const all = shotTypeStats(contexts);
+    expect(all).toEqual(shotTypeStats(contexts, 'all'));
+    expect(all.A.drive_volley.winners).toBe(1);
+    expect(all.A.topspin.errors).toBe(1);
+    expect(all.A.none.winners).toBe(1);
+    const forehand = shotTypeStats(contexts, 'forehand');
+    expect(forehand.A.drive_volley).toEqual({ winners: 1, errors: 0 });
+    expect(forehand.B.slice).toEqual({ winners: 0, errors: 1 });
+    expect(forehand.A.topspin.errors).toBe(0);
+    expect(forehand.A.none.winners).toBe(0);
+    const backhand = shotTypeStats(contexts, 'backhand');
+    expect(backhand.B.slice).toEqual({ winners: 1, errors: 0 });
+    expect(backhand.A.topspin).toEqual({ winners: 0, errors: 1 });
+    expect(backhand.A.drive_volley.winners).toBe(0);
+    expect(backhand.A.none.winners).toBe(0);
+  });
+
+  it('cross-tabulates error directions and types for each player, including missing details', () => {
+    const errors = [
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', {
+        stroke: 'forehand', direction: 'crosscourt', position: 'approach', error: 'net',
+      })),
+      point('B', 'A', 'rally', [serve('in')], rally('server_error', {
+        stroke: 'backhand', direction: 'down_the_line', position: 'net', error: 'long',
+      })),
+      point('B', 'B', 'return_error', [serve('return_error', {
+        return: { stroke: 'backhand', direction: 'inside_out', error: 'wide' },
+      })]),
+      point('A', 'B', 'double_fault', [serve('fault', { fault: 'long' }), serve('fault', { fault: 'net' })]),
+      point('A', 'A', 'return_error', [serve('return_error')]),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { direction: 'crosscourt' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', {
+        lucky: true, direction: 'crosscourt', error: 'wide',
+      })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { direction: 'crosscourt' })),
+      point('A', 'A', 'unrecorded', []),
+    ];
+    const contexts = pointContexts(match, errors);
+    const all = errorDirectionStats(contexts, 'all', 'all');
+    expect(all.A.crosscourt).toEqual({ net: 1, long: 0, wide: 0, none: 1, total: 2 });
+    expect(all.B.down_the_line).toEqual({ net: 0, long: 1, wide: 0, none: 0, total: 1 });
+    expect(all.A.inside_out.wide).toBe(1);
+    expect(all.A.none).toEqual({ net: 1, long: 0, wide: 0, none: 0, total: 1 });
+    expect(all.B.none).toEqual({ net: 0, long: 0, wide: 0, none: 1, total: 1 });
+    expect(errorDirectionStats(contexts, 'forehand', 'approach').A.crosscourt.total).toBe(1);
+    expect(errorDirectionStats(contexts, 'backhand', 'net').B.down_the_line.long).toBe(1);
+    expect(errorDirectionStats(contexts, 'backhand', 'baseline').A.inside_out.wide).toBe(1);
+    expect(errorDirectionStats(contexts, 'forehand', 'all').A.none.total).toBe(0);
+    expect(errorDirectionStats(contexts, 'all', 'net').A.crosscourt.total).toBe(0);
+    expect(Object.values(all.A).reduce((total, counts) => total + counts.total, 0)).toBe(4);
+    expect(Object.values(all.B).reduce((total, counts) => total + counts.total, 0)).toBe(2);
   });
 
   for (const winner of ['A', 'B'] as const) {

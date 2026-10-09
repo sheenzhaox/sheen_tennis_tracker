@@ -62,7 +62,8 @@ export function PlayerStatsControls({ player, matches, names, period, customIds,
         <button type="button" className="btn btn-compact" disabled={!matches.length} onClick={() => onCustomChange(matches.map((match) => match.id))}>Select all</button>
         <button type="button" className="btn btn-compact" disabled={!customIds.length} onClick={() => onCustomChange([])}>Clear selection</button>
       </div>
-      <ul className="list stats-match-selection">
+      <ul className={`list stats-match-selection${matches.length > 5 ? ' scrollable' : ''}`}
+        tabIndex={matches.length > 5 ? 0 : undefined} aria-label="Completed matches to include">
         {matches.map((match) => <li key={match.id}>
           <label className="checkbox">
             <input type="checkbox" checked={customIds.includes(match.id)} onChange={(event) =>
@@ -114,6 +115,6 @@ export default function PlayerStatsPage({ id, back = `/players/${id}` }: { id: s
     </main>
   </>;
   return <StatsView key={id} match={records[0].match} points={stats.contexts.map((context) => context.point)} controls={controls}
-    nameA={player.name} nameB="Opponents (combined)" back={back} contexts={stats.contexts}
+    nameA={player.name} nameB="Opponents (combined)" playerOnly back={back} contexts={stats.contexts}
     aggregate={`${stats.matches} completed ${stats.matches === 1 ? 'match' : 'matches'} · ${stats.wins} wins · ${stats.losses} losses${stats.undecided ? ` · ${stats.undecided} completed without a recorded winner` : ''}`} />;
 }
