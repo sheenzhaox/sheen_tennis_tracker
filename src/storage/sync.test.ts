@@ -193,14 +193,14 @@ describe('sync ownership metadata', () => {
       await store.table('matches').put({ id: 'own-new', updatedAt: 100, ownerId: 'alice', dirty: 1 });
       return new Response(JSON.stringify({
         records: [], cursor: 500, rejected: [], revoked: [], visibleMatchIds: [], visiblePlayerIds: [],
-        user: { ...user, role: 'coach', clubIds: [] }, accessRevision: 3,
+        user: { ...user, name: 'Alice Example', email: 'alice@example.com', role: 'coach', clubIds: [] }, accessRevision: 3,
       }));
     }));
     await syncNow();
     expect(await store.table('matches').get('club-match')).toBeUndefined();
     expect(await store.table('points').get('point')).toBeUndefined();
     expect(await store.table('matches').get('own-new')).toBeDefined();
-    expect(store.meta.get('session')).toMatchObject({ user: { role: 'coach', clubIds: [] } });
+    expect(store.meta.get('session')).toMatchObject({ user: { name: 'Alice Example', email: 'alice@example.com', role: 'coach', clubIds: [] } });
     expect(store.meta.get('accessRevision')).toBe(3);
   });
 });

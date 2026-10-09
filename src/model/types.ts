@@ -24,7 +24,7 @@ export interface Syncable {
 export interface Player extends Syncable {
   id: string;
   name: string;
-  /** Missing only on profiles created before gender became required. */
+  /** Name-only match players and legacy profiles can be completed later in Players. */
   gender?: Gender;
   email?: string;
   handedness?: Handedness;
@@ -42,7 +42,7 @@ export interface Player extends Syncable {
   notesUpdatedAt?: number;
   /** Local sync marker for changing only this user's private note. */
   notesOnly?: boolean;
-  /** Set by the server: user who added the player (private to them). Unset = added by an admin, visible to everyone. */
+  /** Authoritative private owner; absent means system-level and visible to everyone. */
   ownerId?: string;
   createdAt: number;
   updatedAt: number;

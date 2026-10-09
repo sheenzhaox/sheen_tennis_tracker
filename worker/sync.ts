@@ -78,8 +78,8 @@ function upsert(db: D1Database, r: SyncRecord, syncedAt: number, user: User): D1
   );
   const args: unknown[] = [r.id, r.updatedAt, r.deletedAt, syncedAt, JSON.stringify(data)];
   if (r.kind === 'matches') args.push(user.id);
-  // Players added by an admin are shared with everyone (NULL owner); others are private to their creator.
-  if (r.kind === 'players') args.push(user.role === 'admin' ? null : user.id, user.id);
+  // Admins default to system players, but may explicitly create their own private match players.
+  if (r.kind === 'players') args.push(user.role === 'admin' && r.data.ownerId !== user.id ? null : user.id, user.id);
   if (r.kind === 'points') args.push(data.matchId);
   return stmt.bind(...args);
 }
@@ -118,12 +118,12 @@ function playerError(r: SyncRecord, server: ServerPlayer | undefined): string | 
   if (r.deletedAt !== null) return server?.linked_user_id ? 'Unlink the player from their account before deleting them.' : undefined;
   const invalid = (r.data.notesOnly !== true && (
     typeof r.data.name !== 'string' || !r.data.name.trim() || r.data.name.length > 200
-    || ((!server || r.data.gender !== undefined) && r.data.gender !== 'male' && r.data.gender !== 'female')
+    || (r.data.gender !== undefined && r.data.gender !== 'male' && r.data.gender !== 'female')
     || (r.data.email !== undefined && !isPlayerEmail(r.data.email))
   )) || (r.data.notesOnly === true && typeof r.data.notes !== 'string')
     || (r.data.notes !== undefined && (typeof r.data.notes !== 'string' || r.data.notes.length > 20_000))
     || (r.data.notesUpdatedAt !== undefined && (typeof r.data.notesUpdatedAt !== 'number' || !Number.isFinite(r.data.notesUpdatedAt)));
-  return invalid ? 'Player name and Male/Female gender are required; check email and private notes.' : undefined;
+  return invalid ? 'Player name is required; gender, when provided, must be Male/Female. Check email and private notes.' : undefined;
 }
 
 function selectRows(db: D1Database, kind: Kind, user: User, where: string, param: unknown): D1PreparedStatement {

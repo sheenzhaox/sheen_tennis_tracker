@@ -30,7 +30,7 @@ export default function PlayerEditPage({ id, returnTo }: Props) {
   if (!isNew && player === null) {
     return (
       <>
-        <Header title="Player" back="/players" />
+        <Header title="Player" back={returnTo ?? '/players'} />
         <main className="page">
           <p>Player not found.</p>
         </main>
@@ -107,7 +107,7 @@ function PlayerForm({ player, returnTo }: { player: Player | null; returnTo: str
     if (matches.length > 0) return setError('This player has recorded matches and cannot be deleted.');
     if (!confirm(`Delete ${player.name}?`)) return;
     setBusy(true);
-    try { await deleteRecord('players', player.id); navigate('/players'); }
+    try { await deleteRecord('players', player.id); navigate(back); }
     catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setBusy(false); }
   }

@@ -21,13 +21,16 @@ export const ACCOUNT_SELECT = `SELECT u.*,
   (SELECT json_group_array(uc.club_id) FROM user_clubs uc JOIN clubs c ON c.id = uc.club_id
    WHERE uc.user_id = u.id AND c.deleted_at IS NULL) AS club_ids FROM users u`;
 
-export interface AccountRow extends User {
+export interface AccountRow extends Omit<User, 'name' | 'email'> {
+  name: string | null;
+  email: string | null;
   player_id: string | null;
   club_ids: string;
 }
 
 export function accountData(row: AccountRow): User {
-  return { id: row.id, username: row.username, role: row.role, playerId: row.player_id ?? undefined,
+  return { id: row.id, username: row.username, name: row.name ?? undefined, email: row.email ?? undefined,
+    role: row.role, playerId: row.player_id ?? undefined,
     clubIds: JSON.parse(row.club_ids) as string[] };
 }
 

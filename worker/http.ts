@@ -11,6 +11,8 @@ export interface Env {
 export interface User {
   id: string;
   username: string;
+  name?: string;
+  email?: string;
   role: UserRole;
   playerId?: string;
   clubIds?: string[];

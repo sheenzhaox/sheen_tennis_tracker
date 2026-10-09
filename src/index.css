@@ -244,6 +244,10 @@ h2 {
   background: var(--green-light);
 }
 
+.user-directory a {
+  overflow-wrap: anywhere;
+}
+
 .match-list-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -810,6 +814,26 @@ legend {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.85rem 1rem;
+}
+
+.club-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.club-section h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.club-players summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding: 0.7rem 0;
 }
 
 .user-actions {

@@ -5,6 +5,8 @@ import type { UserRole } from '../model/types';
 export interface SessionUser {
   id: string;
   username: string;
+  name?: string;
+  email?: string;
   role: UserRole;
   playerId?: string;
   clubIds?: string[];

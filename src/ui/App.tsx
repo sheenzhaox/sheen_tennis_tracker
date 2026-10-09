@@ -68,7 +68,7 @@ function Routes() {
     case 'settings':
       return <SettingsPage />;
     case 'users':
-      return isAdmin(user) ? <UsersPage /> : <HomePage />;
+      return isAdmin(user) ? <UsersPage key={id ?? 'directory'} id={id} /> : <HomePage />;
     case 'clubs':
       return isAdmin(user) ? <ClubsPage /> : <HomePage />;
     default:

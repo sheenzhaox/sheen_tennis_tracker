@@ -8,6 +8,7 @@ import type { User } from '../worker/http';
 
 const dir = join(process.cwd(), 'migrations');
 const migrations = readdirSync(dir).filter((file) => file.endsWith('.sql')).sort();
+const profileMigration = migrations.indexOf('0007_clubs_and_profiles.sql');
 let db: DatabaseSync;
 function player(id: string, owner: string | null, data: object) {
   db.prepare('INSERT INTO players (id, owner_id, updated_at, synced_at, data) VALUES (?, ?, 10, 10, ?)')
@@ -24,7 +25,7 @@ const visible = (user: string) => db.prepare(
 beforeEach(() => {
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
-  for (const file of migrations.slice(0, -1)) {
+  for (const file of migrations.slice(0, profileMigration)) {
     db.exec('BEGIN'); db.exec(readFileSync(join(dir, file), 'utf8')); db.exec('COMMIT');
   }
   db.exec(`INSERT INTO users (id, username, role, created_at) VALUES
@@ -35,13 +36,23 @@ beforeEach(() => {
   match('club-match', 'bob', 'system');
   match('private-match', 'bob', 'private', 'private');
   match('coach-own', 'coach', 'private', 'private');
-  db.exec('BEGIN');
-  db.exec(readFileSync(join(dir, migrations.at(-1)!), 'utf8'));
-  db.exec('COMMIT');
+  for (const file of migrations.slice(profileMigration)) {
+    db.exec('BEGIN'); db.exec(readFileSync(join(dir, file), 'utf8')); db.exec('COMMIT');
+  }
 });
 afterEach(() => db.close());
 
 describe('club/profile migration and relational access', () => {
+  it('adds optional account name/email without guessing them from linked or private player profiles', () => {
+    expect(db.prepare('SELECT name, email FROM users WHERE id = ?').get('alice')).toMatchObject({ name: null, email: null });
+    db.exec("UPDATE users SET name = 'Alice Example', email = 'account@example.com' WHERE id = 'alice'");
+    expect(db.prepare('SELECT name, email FROM users WHERE id = ?').get('alice'))
+      .toMatchObject({ name: 'Alice Example', email: 'account@example.com' });
+    expect(db.prepare("SELECT json_extract(data, '$.email') AS email FROM players WHERE id = ?").get('private')?.email)
+      .toBe('alice@example.com');
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sessions').get()?.n).toBe(1);
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  });
   it('preserves accounts, sessions, matches, and private notes without inventing gender or links', () => {
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     expect(db.prepare('SELECT COUNT(*) AS n FROM sessions').get()?.n).toBe(1);

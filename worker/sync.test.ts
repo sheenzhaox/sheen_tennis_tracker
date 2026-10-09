@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { canWriteMatch, canWritePlayer } from './sync';
+import { describe, expect, it, vi } from 'vitest';
+import { canWriteMatch, canWritePlayer, sync } from './sync';
 import type { User } from './http';
 
 const admin = { id: 'admin', username: 'admin', role: 'admin' } as User;
@@ -37,6 +37,50 @@ describe('canWritePlayer', () => {
   it('lets users add new players but not create already-deleted ones', () => {
     expect(canWritePlayer(alice, live, undefined, false)).toBe(true);
     expect(canWritePlayer(alice, deleted, undefined, false)).toBe(false);
+  });
+
+  function syncDatabase() {
+    const bind = vi.fn();
+    const statement = { bind, first: vi.fn().mockResolvedValue({ revision: 1 }), all: vi.fn().mockResolvedValue({ results: [] }), run: vi.fn(), raw: vi.fn() };
+    bind.mockReturnValue(statement);
+    const prepare = vi.fn().mockReturnValue(statement);
+    const batch = vi.fn().mockImplementation(async (statements: D1PreparedStatement[]) => statements.map(() => ({ results: [] })));
+    const db: D1Database = { prepare, batch, exec: vi.fn(), withSession: vi.fn(), dump: vi.fn() };
+    return { db, bind };
+  }
+  const playerRequest = (data: object) => new Request('https://example.com/api/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records: [{ kind: 'players', id: 'draft', updatedAt: 10, deletedAt: null, data: { id: 'draft', name: 'Sam', ...data } }] }),
+  });
+
+  describe('name-only player sync', () => {
+    it.each([alice, admin])('accepts name-only players private to $username', async (user) => {
+      const { db, bind } = syncDatabase();
+      const response = await sync(playerRequest({ ownerId: user.id }), db, user);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ rejected: [] });
+      expect(bind).toHaveBeenCalledWith('draft', 10, null, expect.any(Number), expect.any(String), user.id, user.id);
+    });
+
+    it('preserves system-level creation from the admin Players form', async () => {
+      const { db, bind } = syncDatabase();
+      await sync(playerRequest({ gender: 'male' }), db, admin);
+      expect(bind).toHaveBeenCalledWith('draft', 10, null, expect.any(Number), expect.any(String), null, admin.id);
+    });
+
+    it('does not let a normal user choose someone else as the new player owner', async () => {
+      const { db, bind } = syncDatabase();
+      await sync(playerRequest({ ownerId: 'bob' }), db, alice);
+      expect(bind).toHaveBeenCalledWith('draft', 10, null, expect.any(Number), expect.any(String), alice.id, alice.id);
+    });
+
+    it.each(['', 'unknown', null, 123])('still rejects an invalid provided gender: %s', async (gender) => {
+      const { db, bind } = syncDatabase();
+      const response = await sync(playerRequest({ gender }), db, alice);
+      const body = await response.json() as { rejected: { id: string; reason: string }[] };
+      expect(body.rejected).toMatchObject([{ id: 'draft', reason: expect.stringContaining('Male/Female') }]);
+      expect(bind.mock.calls.some((args) => args[0] === 'draft' && args.length === 7)).toBe(false);
+    });
   });
 
   it('lets users edit and delete only their own players', () => {

@@ -1,7 +1,7 @@
 import { hashPassword } from './auth';
 import { isId, isPassword, isUsername, json, readJson, type Env, type User } from './http';
 import { ACCOUNT_SELECT, accountData, bumpAccess, type AccountRow } from './access';
-import type { UserRole } from '../src/model/types';
+import { isPlayerEmail, type UserRole } from '../src/model/types';
 
 interface UserListRow extends AccountRow {
   disabled_at: number | null;
@@ -16,6 +16,17 @@ export async function listUsers(env: Env): Promise<Response> {
 }
 
 const isRole = (v: unknown): v is UserRole => v === 'admin' || v === 'user' || v === 'coach';
+
+function profileError({ name, email }: { name?: unknown; email?: unknown }): Response | null {
+  if (name !== undefined && name !== null && (typeof name !== 'string' || name.trim().length > 200)) {
+    return json({ error: 'Name must be at most 200 characters.' }, 400);
+  }
+  if (email !== undefined && email !== null
+    && (typeof email !== 'string' || (email.trim() !== '' && !isPlayerEmail(email.trim())))) {
+    return json({ error: 'Enter a valid email address, or leave it blank.' }, 400);
+  }
+  return null;
+}
 
 export async function validateClubs(db: D1Database, value: unknown): Promise<string[] | Response> {
   if (!Array.isArray(value) || value.length > 100 || !value.every(isId)) return json({ error: 'Invalid clubs.' }, 400);
@@ -34,10 +45,12 @@ async function validatePlayerLink(db: D1Database, playerId: unknown, userId?: st
 }
 
 export async function createUser(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown; playerId?: unknown; clubIds?: unknown }>(req);
+  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown; playerId?: unknown; clubIds?: unknown; name?: unknown; email?: unknown }>(req);
   if (body instanceof Response) return body;
   if (!isUsername(body.username)) return json({ error: 'Username: 2-32 letters, digits, ".", "-" or "_".' }, 400);
   if (!isPassword(body.password)) return json({ error: 'Password must be 8-200 characters.' }, 400);
+  const invalidProfile = profileError(body);
+  if (invalidProfile) return invalidProfile;
   if (body.role !== undefined && !isRole(body.role)) return json({ error: 'Invalid role.' }, 400);
   const role = body.role ?? 'user';
   const playerId = body.playerId ?? null;
@@ -50,8 +63,10 @@ export async function createUser(req: Request, env: Env): Promise<Response> {
   const id = crypto.randomUUID();
   const [res] = await env.DB.batch([
     env.DB.prepare(
-      'INSERT INTO users (id, username, role, password_hash, created_at, player_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT DO NOTHING',
-    ).bind(id, body.username, role, await hashPassword(body.password), Date.now(), playerId),
+      'INSERT INTO users (id, username, role, password_hash, created_at, player_id, name, email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ON CONFLICT DO NOTHING',
+    ).bind(id, body.username, role, await hashPassword(body.password), Date.now(), playerId,
+      typeof body.name === 'string' ? body.name.trim() || null : null,
+      typeof body.email === 'string' ? body.email.trim() || null : null),
     env.DB.prepare(`INSERT INTO user_clubs (user_id, club_id) SELECT ?1, value FROM json_each(?2)
       WHERE EXISTS (SELECT 1 FROM users WHERE id = ?1)`).bind(id, JSON.stringify(role === 'coach' ? clubs : [])),
     bumpAccess(env.DB),
@@ -61,8 +76,10 @@ export async function createUser(req: Request, env: Env): Promise<Response> {
 }
 
 export async function updateUser(req: Request, env: Env, admin: User, id: string): Promise<Response> {
-  const body = await readJson<{ password?: unknown; role?: unknown; disabled?: unknown; playerId?: unknown; clubIds?: unknown }>(req);
+  const body = await readJson<{ password?: unknown; role?: unknown; disabled?: unknown; playerId?: unknown; clubIds?: unknown; name?: unknown; email?: unknown }>(req);
   if (body instanceof Response) return body;
+  const invalidProfile = profileError(body);
+  if (invalidProfile) return invalidProfile;
   if (id === admin.id && ((body.role !== undefined && body.role !== 'admin') || body.disabled === true)) {
     return json({ error: "You can't demote or disable your own account." }, 400);
   }
@@ -70,6 +87,10 @@ export async function updateUser(req: Request, env: Env, admin: User, id: string
   const current = await env.DB.prepare('SELECT role, player_id FROM users WHERE id = ?1')
     .bind(id).first<{ role: UserRole; player_id: string | null }>();
   if (!current) return json({ error: 'User not found.' }, 404);
+  if (body.name !== undefined) stmts.push(env.DB.prepare('UPDATE users SET name = ?2 WHERE id = ?1')
+    .bind(id, typeof body.name === 'string' ? body.name.trim() || null : null));
+  if (body.email !== undefined) stmts.push(env.DB.prepare('UPDATE users SET email = ?2 WHERE id = ?1')
+    .bind(id, typeof body.email === 'string' ? body.email.trim() || null : null));
   if (body.role === 'user' && current.role !== 'user' && body.playerId === undefined) {
     const error = await validatePlayerLink(env.DB, current.player_id, id);
     if (error) return error;

@@ -41,7 +41,7 @@ describe('player management and match suggestions', () => {
   it('preserves selected names and uses a labelled text combobox instead of a dropdown', () => {
     const html = renderToStaticMarkup(
       <UserContext value={user}>
-        <PlayerPicker label="Player A" value="own" onChange={() => {}} players={players} otherId="shared" loading={false} />
+        <PlayerPicker label="Player A" value="own" onChange={() => {}} onNameChange={() => {}} players={players} otherId="shared" loading={false} />
       </UserContext>,
     );
     expect(html).toContain('role="combobox"');
@@ -51,10 +51,10 @@ describe('player management and match suggestions', () => {
     expect(html).not.toContain('Add new player');
   });
 
-  it('disables input while players are loading rather than offering premature quick-add', () => {
+  it('disables name input while players are loading', () => {
     const html = renderToStaticMarkup(
       <UserContext value={user}>
-        <PlayerPicker label="Player B" value="" onChange={() => {}} players={[]} otherId="" loading />
+        <PlayerPicker label="Player B" value="" onChange={() => {}} onNameChange={() => {}} players={[]} otherId="" loading />
       </UserContext>,
     );
     expect(html).toContain('disabled=""');
