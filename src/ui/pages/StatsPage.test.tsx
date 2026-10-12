@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { DEFAULT_RULES } from '../../model/rules';
 import type { Match, Point, ShotType } from '../../model/types';
 import RallyEntry from '../components/RallyEntry';
+import OptionRow from '../components/OptionRow';
 import { StatsView } from './StatsPage';
 
 const match: Match = {
@@ -20,6 +21,28 @@ const stats = (points: Point[]) => renderToStaticMarkup(
 );
 
 describe('rally shot options and stats', () => {
+  it.each([false, true])('offers optional incoming controls after shot position (busy=%s)', (busy) => {
+    const html = renderToStaticMarkup(<RallyEntry serverName="Alice" returnerName="Bob" busy={busy} onComplete={() => {}} />);
+    const incoming = html.slice(html.indexOf('<h2>Incoming ball</h2>'), html.indexOf('class="btn btn-primary btn-big next-btn"'));
+    expect(html.indexOf('<h2>Shot position</h2>')).toBeLessThan(html.indexOf('<h2>Incoming ball</h2>'));
+    expect(html.indexOf('<h2>Incoming ball</h2>')).toBeLessThan(html.indexOf('<h2>Incoming direction</h2>'));
+    for (const label of ['Slow', 'Fast', 'Heavy', 'Slice', 'Short', 'Deep', 'Cross', 'Down line', 'Inside out', 'Inside in', 'Short angle', 'Dropshot']) {
+      expect(incoming).toContain(`>${label}</button>`);
+    }
+    expect(incoming.match(/aria-pressed="false"/g)).toHaveLength(12);
+    expect(incoming.match(/disabled=""/g) ?? []).toHaveLength(busy ? 12 : 0);
+    expect(incoming).toContain('<h2>Incoming direction</h2>');
+  });
+
+  it('marks each selected value in a multi-choice row independently', () => {
+    const html = renderToStaticMarkup(<OptionRow title="Incoming ball" disabled={false}
+      options={[{ value: 'fast', label: 'Fast' }, { value: 'heavy', label: 'Heavy' }, { value: 'slow', label: 'Slow' }]}
+      value={['fast', 'heavy']} onPick={() => {}} />);
+    expect(html).toContain('aria-pressed="true">Fast</button>');
+    expect(html).toContain('aria-pressed="true">Heavy</button>');
+    expect(html).toContain('aria-pressed="false">Slow</button>');
+  });
+
   it('offers Drive volley instead of Topspin and uses Down line in rally entry', () => {
     const html = renderToStaticMarkup(<RallyEntry serverName="Alice" returnerName="Bob" busy={false} onComplete={() => {}} />);
     expect(html).toContain('Drive volley');

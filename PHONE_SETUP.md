@@ -73,6 +73,7 @@ Phone installation and offline behavior have not yet been field-tested for this 
 
 ## Rally Shot Details
 
+- **Incoming ball** allows multiple selections: Slow, Fast, Heavy, Slice, Short and Deep. **Incoming direction** allows one selection: Cross, Down line, Inside out, Inside in, Short angle or Dropshot. Both are optional; tap a selected option again to clear it. These describe the ball received before the final shot and appear in the point log and CSV export. Both sections follow Shot position. Use **Save point** after entering the details; selecting Shot position no longer saves automatically.
 - Rally **Shot direction** uses **Down line**. Under **Shot type**, use **Drive volley** for a drive volley; Topspin is no longer offered for new points.
 - Stats keep older Topspin records as **Topspin (legacy)** when present in the selected data. Unspecified shot types appear as **Not set**, not Drive volley. These labels also apply to shared stats and point-log CSV exports.
 - The **Shot type** stats section has **Forehand / Backhand** filter buttons. Select one to count only that stroke; tap it again to clear it. Neither selected includes both strokes and shots with stroke not set. This applies to player, match and shared stats.

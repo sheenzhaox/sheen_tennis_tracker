@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import OptionRow from './OptionRow';
 import {
+  INCOMING_BALLS,
+  INCOMING_DIRECTIONS,
   RETURN_ERRORS,
   SHOT_DIRECTIONS,
   SHOT_POSITIONS,
@@ -28,6 +30,8 @@ const EMPTY: Draft = {
   direction: 'none',
   shotType: 'none',
   position: 'none',
+  incomingBall: [],
+  incomingDirection: 'none',
 };
 
 const isError = (e: RallyEnding | null) => e === 'server_error' || e === 'returner_error';
@@ -53,11 +57,9 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
     if (next.ending) onComplete(toDetail(next, next.ending));
   };
 
-  function pick<K extends 'stroke' | 'error' | 'direction' | 'shotType' | 'position'>(key: K, value: Draft[K]) {
+  function pick<K extends 'stroke' | 'error' | 'direction' | 'shotType' | 'position' | 'incomingDirection'>(key: K, value: Draft[K]) {
     const next = { ...d, [key]: d[key] === value ? 'none' : value };
     setD(next);
-    // Shot position is the last row, so it completes the point once the ending is known.
-    if (key === 'position' && next.position !== 'none') complete(next);
   }
 
   return (
@@ -109,6 +111,13 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
       <OptionRow title="Shot direction" options={SHOT_DIRECTIONS} value={d.direction} disabled={busy} onPick={(v) => pick('direction', v)} />
       <OptionRow title="Shot type" options={SHOT_TYPES} value={d.shotType} disabled={busy} onPick={(v) => pick('shotType', v)} />
       <OptionRow title="Shot position" options={SHOT_POSITIONS} value={d.position} disabled={busy} onPick={(v) => pick('position', v)} />
+      <OptionRow title="Incoming ball" options={INCOMING_BALLS} value={d.incomingBall ?? []} disabled={busy} onPick={(value) => setD({
+        ...d,
+        incomingBall: (d.incomingBall ?? []).includes(value)
+          ? d.incomingBall?.filter((ball) => ball !== value)
+          : [...(d.incomingBall ?? []), value],
+      })} />
+      <OptionRow title="Incoming direction" options={INCOMING_DIRECTIONS} value={d.incomingDirection ?? 'none'} disabled={busy} onPick={(value) => pick('incomingDirection', value)} />
 
       <button type="button" className="btn btn-primary btn-big next-btn" disabled={!d.ending || busy} onClick={() => complete(d)}>
         Save point

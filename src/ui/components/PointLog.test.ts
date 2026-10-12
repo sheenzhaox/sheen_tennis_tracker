@@ -46,6 +46,29 @@ describe('pointLogCsv', () => {
     expect(csv).toContain('"Rally 5, Alice winner & forced error, Forehand, Lucky ball, Cross court, Topspin (legacy), Baseline"');
   });
 
+  it('exports incoming ball selections and direction separately from the outgoing shot', () => {
+    const csv = pointLogCsv(props, [{
+      ...point, end: 'rally',
+      rally: {
+        count: 4, ending: 'server_error', stroke: 'backhand', error: 'net',
+        direction: 'down_the_line', shotType: 'slice', position: 'baseline',
+        incomingBall: ['deep', 'fast', 'heavy'], incomingDirection: 'dropshot',
+      },
+    }]);
+    expect(csv).toContain('Down line, Slice, Baseline, Incoming ball: Fast / Heavy / Deep, Incoming direction: Dropshot');
+  });
+
+  it('omits unselected incoming details', () => {
+    const csv = pointLogCsv(props, [{
+      ...point, end: 'rally',
+      rally: {
+        count: null, ending: 'server_winner', stroke: 'none', direction: 'none', shotType: 'none', position: 'none',
+        incomingBall: [], incomingDirection: 'none',
+      },
+    }]);
+    expect(csv).not.toContain('Incoming');
+  });
+
   it('exports drive volleys with the shorter rally direction label', () => {
     const csv = pointLogCsv(props, [{
       ...point, end: 'rally', serves: [{ result: 'in', location: 'none', type: 'none' }],

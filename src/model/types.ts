@@ -152,6 +152,26 @@ export type Stroke = 'forehand' | 'backhand' | 'none';
 export type ShotDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'middle' | 'short_angle' | 'none';
 export type ShotType = 'topspin' | 'drive_volley' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
 export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
+export type IncomingBall = 'slow' | 'fast' | 'heavy' | 'slice' | 'short' | 'deep';
+export type IncomingDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'short_angle' | 'dropshot' | 'none';
+
+export const INCOMING_BALLS: { value: IncomingBall; label: string }[] = [
+  { value: 'slow', label: 'Slow' },
+  { value: 'fast', label: 'Fast' },
+  { value: 'heavy', label: 'Heavy' },
+  { value: 'slice', label: 'Slice' },
+  { value: 'short', label: 'Short' },
+  { value: 'deep', label: 'Deep' },
+];
+
+export const INCOMING_DIRECTIONS: { value: Exclude<IncomingDirection, 'none'>; label: string }[] = [
+  { value: 'crosscourt', label: 'Cross' },
+  { value: 'down_the_line', label: 'Down line' },
+  { value: 'inside_out', label: 'Inside out' },
+  { value: 'inside_in', label: 'Inside in' },
+  { value: 'short_angle', label: 'Short angle' },
+  { value: 'dropshot', label: 'Dropshot' },
+];
 
 /** Details of the last shot of a rally. */
 export interface RallyDetail {
@@ -166,6 +186,8 @@ export interface RallyDetail {
   direction: ShotDirection;
   shotType: ShotType;
   position: ShotPosition;
+  incomingBall?: IncomingBall[];
+  incomingDirection?: IncomingDirection;
 }
 
 export const rallyWonByServer = (e: RallyEnding) => e === 'server_winner' || e === 'returner_error';
