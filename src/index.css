@@ -1,9 +1,10 @@
 :root {
-  --green: #1b5e20;
-  --green-light: #e8f5e9;
-  --border: #d0d7d0;
-  --muted: #667066;
+  --green: #043065;
+  --green-light: #e6f0fa;
+  --border: #d3dce8;
+  --muted: #5a6a80;
   --danger: #c62828;
+  --ball: #c3e21f;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 17px;
   color: #1a1a1a;
@@ -57,7 +58,8 @@ h2 {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   z-index: 1;
 }
@@ -217,6 +219,10 @@ h2 {
   color: var(--green);
 }
 
+.home-title img {
+  filter: drop-shadow(0 8px 16px rgba(4, 48, 101, 0.3));
+}
+
 .home-menu {
   display: flex;
   flex-direction: column;
@@ -246,6 +252,15 @@ h2 {
 
 .btn:active {
   filter: brightness(0.92);
+}
+
+.btn:focus-visible,
+.chip:focus-visible,
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible {
+  outline: 3px solid #00a8e0;
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -644,7 +659,8 @@ legend {
 .match-over {
   padding: 1rem;
   border-radius: 12px;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   text-align: center;
   font-size: 1.15rem;

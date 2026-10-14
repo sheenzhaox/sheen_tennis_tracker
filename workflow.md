@@ -347,3 +347,28 @@ src/
 - [ ] Test install + offline on phone
 - [x] Main page + Players + Rules + Start/Resume match (local)
 - [ ] Phase 2: scoring engine + tests
+
+
+## For the local preview:
+
+Frontend: http://127.0.0.1:5177/ (requires the API below on port 8787).
+The accounts below belong to the retained isolated database, not the default local Wrangler database.
+Run these in separate terminals from the repository root:
+
+```powershell
+npm run dev -- --host 127.0.0.1 --port 5177 --strictPort
+```
+
+```powershell
+npx wrangler dev --local --config "C:\Users\xin.zhao\.copilot\session-state\ebdca164-cb90-4a1b-bda1-0c58428a55f9\files\user-directory-test.wrangler.jsonc" --persist-to "C:\Users\xin.zhao\.copilot\session-state\ebdca164-cb90-4a1b-bda1-0c58428a55f9\files\user-directory-test-db" --port 8787
+```
+
+Admin account
+
+Username: admin
+Password: local-directory-bootstrap-password
+Normal user test account
+
+Username: linked-user
+Password: directory-password-123
+These are local test credentials, unless you changed them during testing—not production credentials.
