@@ -28,7 +28,7 @@ Whenever either recording page gains, changes, or removes a factor, update the f
 
 ## Advanced Analysis Page
 
-**Agreed and implemented 2026-10-14; local, not deployed.** A bottom-of-page Advanced Analysis link on normal authenticated match stats opens `#/match/:id/advanced-analysis` for `completed` matches, including manual finalisation. Scheduled, in-progress and abandoned matches have no link and cannot open the analysis content directly. The page uses the same locally accessible match/point records as normal match stats; it adds no permissions, public link, API or storage fields. Back returns to normal match stats and preserves the stats-directory return destination.
+**Agreed, implemented and deployed 2026-10-14 in release `358b109`.** A bottom-of-page Advanced Analysis link on normal authenticated match stats opens `#/match/:id/advanced-analysis` for `completed` matches, including manual finalisation. Scheduled, in-progress and abandoned matches have no link and cannot open the analysis content directly. The page uses the same locally accessible match/point records as normal match stats; it adds no permissions, public link, API or storage fields. Back returns to normal match stats and preserves the stats-directory return destination.
 
 Sections appear in this order:
 
@@ -214,6 +214,7 @@ The Serve winner filter is broader than shot-winner attribution: a return error 
 
 ## Decision Record
 
+- **2026-10-14 - Page structure deployed / design saved:** Release `358b109` publishes Advanced Analysis structure and unchanged Summary reuse. Serve-location distributions and the other advanced metric details remain design-only. Full release validation: 212 tests, all type checks, build and Worker dry run; live app/Help/Public Stats/CSS content and PWA assets verified, protected APIs reject anonymous requests. See `workflow.md` for deployment versions, verification limits and the next design decisions.
 - **2026-10-14 - Count precedence confirmed:** Direct-ending counts 1/2 override unknown rally-count values for phase and serve-outcome eligibility. Resolve the ending before applying unknown-count exclusions. Updated serve design; no runtime changes.
 - **2026-10-14 - Serve outcomes clarified:** Agreed ace + return error for Serve winner, overlapping early (<7, known count) advantage/disadvantage and all-count win/loss filters, unknown-count exclusion from early filters, and double fault as one server UE. Preserve receiver-UE/shot-winner attribution and the existing Summary. Updated all affected topics; no application implementation.
 - **2026-10-14 - Serve design started:** Recorded location-distribution requirements and all requested filters in `serve.md`, with explicit proposed formulas, data/missingness rules and open outcome definitions. Design-only task; Advanced Analysis Serve Statistics remains heading-only.
