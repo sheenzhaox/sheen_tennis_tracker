@@ -5,6 +5,7 @@ import type { Match, Point, ShotType } from '../../model/types';
 import RallyEntry from '../components/RallyEntry';
 import OptionRow from '../components/OptionRow';
 import { StatsView } from './StatsPage';
+import { AdvancedAnalysisView } from './AdvancedAnalysisPage';
 
 const match: Match = {
   id: 'match', playerAId: 'alice', playerBId: 'bob', ruleSetId: 'standard', ruleSetName: 'Standard',
@@ -21,6 +22,21 @@ const stats = (points: Point[]) => renderToStaticMarkup(
 );
 
 describe('rally shot options and stats', () => {
+  it('reuses the unchanged Summary in Advanced Analysis without other statistics details', () => {
+    const rally = point('drive_volley');
+    const points: Point[] = [rally, { ...rally, id: 'lucky', seq: 1, rally: { ...rally.rally!, lucky: true } },
+      { ...rally, id: 'manual', seq: 2, end: 'unrecorded', serves: [], rally: undefined },
+      { ...rally, id: 'double', seq: 3, end: 'double_fault', winner: 'B', rally: undefined,
+        serves: [{ result: 'fault', location: 'none', type: 'none' }, { result: 'fault', location: 'none', type: 'none' }] }];
+    const normal = stats(points);
+    const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
+      points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
+    expect(advanced.match(/<table.*?<\/table>/g)).toEqual([normal.match(/<table.*?<\/table>/)?.[0]]);
+    expect(advanced).toContain('>Set 1</button>');
+    expect(advanced).toContain('Not recorded');
+    expect(normal).not.toContain('Advanced Analysis');
+  });
+
   it.each([false, true])('offers optional incoming controls after shot position (busy=%s)', (busy) => {
     const html = renderToStaticMarkup(<RallyEntry serverName="Alice" returnerName="Bob" busy={busy} onComplete={() => {}} />);
     const incoming = html.slice(html.indexOf('<h2>Incoming ball</h2>'), html.indexOf('class="btn btn-primary btn-big next-btn"'));

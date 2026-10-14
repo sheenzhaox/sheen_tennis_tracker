@@ -1,7 +1,7 @@
 import { hashPassword } from './auth';
 import { isId, isPassword, isUsername, json, readJson, type Env, type User } from './http';
 import { ACCOUNT_SELECT, accountData, bumpAccess, type AccountRow } from './access';
-import { isPlayerEmail, type UserRole } from '../src/model/types';
+import { isPlayerEmail, type Player, type UserRole } from '../src/model/types';
 
 interface UserListRow extends AccountRow {
   disabled_at: number | null;
@@ -44,8 +44,9 @@ async function validatePlayerLink(db: D1Database, playerId: unknown, userId?: st
   return linked ? json({ error: 'This player is already linked to an account.' }, 409) : null;
 }
 
-export async function createUser(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown; playerId?: unknown; clubIds?: unknown; name?: unknown; email?: unknown }>(req);
+export async function createUser(req: Request, env: Env, admin: User): Promise<Response> {
+  if (admin.role !== 'admin') return json({ error: 'Forbidden.' }, 403);
+  const body = await readJson<{ username?: unknown; password?: unknown; role?: unknown; playerId?: unknown; newPlayer?: unknown; clubIds?: unknown; name?: unknown; email?: unknown }>(req);
   if (body instanceof Response) return body;
   if (!isUsername(body.username)) return json({ error: 'Username: 2-32 letters, digits, ".", "-" or "_".' }, 400);
   if (!isPassword(body.password)) return json({ error: 'Password must be 8-200 characters.' }, 400);
@@ -53,8 +54,29 @@ export async function createUser(req: Request, env: Env): Promise<Response> {
   if (invalidProfile) return invalidProfile;
   if (body.role !== undefined && !isRole(body.role)) return json({ error: 'Invalid role.' }, 400);
   const role = body.role ?? 'user';
-  const playerId = body.playerId ?? null;
-  if (role === 'user' || playerId !== null) {
+  const now = Date.now();
+  let newPlayer: Player | undefined;
+  if (body.newPlayer !== undefined) {
+    if (body.playerId !== undefined && body.playerId !== null) return json({ error: 'Choose an existing player or create a new one, not both.' }, 400);
+    const value = body.newPlayer;
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+      || !('name' in value) || typeof value.name !== 'string' || !value.name.trim() || value.name.trim().length > 200) {
+      return json({ error: 'Player name must be 1-200 characters.' }, 400);
+    }
+    if (!('gender' in value) || (value.gender !== 'male' && value.gender !== 'female')) {
+      return json({ error: 'Choose a player gender.' }, 400);
+    }
+    const email = 'email' in value ? value.email : undefined;
+    const invalidPlayerEmail = profileError({ email });
+    if (invalidPlayerEmail) return invalidPlayerEmail;
+    newPlayer = {
+      id: crypto.randomUUID(), name: value.name.trim(), gender: value.gender,
+      email: typeof email === 'string' ? email.trim() || undefined : undefined,
+      createdById: admin.id, createdAt: now, updatedAt: now,
+    };
+  }
+  const playerId = newPlayer?.id ?? body.playerId ?? null;
+  if (!newPlayer && (role === 'user' || playerId !== null)) {
     const error = await validatePlayerLink(env.DB, playerId);
     if (error) return error;
   }
@@ -64,15 +86,21 @@ export async function createUser(req: Request, env: Env): Promise<Response> {
   const [res] = await env.DB.batch([
     env.DB.prepare(
       'INSERT INTO users (id, username, role, password_hash, created_at, player_id, name, email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ON CONFLICT DO NOTHING',
-    ).bind(id, body.username, role, await hashPassword(body.password), Date.now(), playerId,
+    ).bind(id, body.username, role, await hashPassword(body.password), now, newPlayer ? null : playerId,
       typeof body.name === 'string' ? body.name.trim() || null : null,
       typeof body.email === 'string' ? body.email.trim() || null : null),
+    ...(newPlayer ? [
+      env.DB.prepare(`INSERT INTO players (id, updated_at, synced_at, data, owner_id, created_by)
+        SELECT ?1, ?2, ?2, ?3, NULL, ?4 WHERE EXISTS (SELECT 1 FROM users WHERE id = ?5)`)
+        .bind(newPlayer.id, now, JSON.stringify(newPlayer), admin.id, id),
+      env.DB.prepare('UPDATE users SET player_id = ?2 WHERE id = ?1').bind(id, newPlayer.id),
+    ] : []),
     env.DB.prepare(`INSERT INTO user_clubs (user_id, club_id) SELECT ?1, value FROM json_each(?2)
       WHERE EXISTS (SELECT 1 FROM users WHERE id = ?1)`).bind(id, JSON.stringify(role === 'coach' ? clubs : [])),
     bumpAccess(env.DB),
   ]);
   if (!res.meta.changes) return json({ error: 'Username already taken or player already linked.' }, 409);
-  return json({ id });
+  return json({ id, ...(newPlayer ? { playerId: newPlayer.id } : {}) });
 }
 
 export async function updateUser(req: Request, env: Env, admin: User, id: string): Promise<Response> {

@@ -23,12 +23,52 @@ function setup() {
 }
 
 describe('account name and email', () => {
+  it('creates and links a system player in the same batch with server-assigned provenance', async () => {
+    const { env, bind, prepare, batch } = setup();
+    const response = await createUser(request({
+      username: 'new-user', password: 'test-password', role: 'user',
+      newPlayer: { name: '  New Player  ', gender: 'female', email: ' player@example.com ', ownerId: 'other', createdById: 'other' },
+    }), env, admin);
+    const result = await response.json() as { id: string; playerId: string };
+    expect(response.status).toBe(200);
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('NULL, ?4 WHERE EXISTS (SELECT 1 FROM users WHERE id = ?5)'));
+    const playerInsert = bind.mock.calls.find((args) => args.length === 5 && args[0] === result.playerId);
+    expect(playerInsert).toBeDefined();
+    expect(JSON.parse(playerInsert![2])).toMatchObject({ id: result.playerId, name: 'New Player', gender: 'female', email: 'player@example.com', createdById: admin.id });
+    expect(JSON.parse(playerInsert![2]).ownerId).toBeUndefined();
+    expect(bind).toHaveBeenCalledWith(result.id, result.playerId);
+  });
+
+  it.each([
+    null, [], {}, { name: '' }, { name: 'Player' }, { name: 'Player', gender: 'other' },
+    { name: 'x'.repeat(201), gender: 'male' }, { name: 'Player', gender: 'male', email: 'invalid' },
+  ])('rejects invalid inline players without writing: %j', async (newPlayer) => {
+    const { env, batch } = setup();
+    expect((await createUser(request({ username: 'new-user', password: 'test-password', newPlayer }), env, admin)).status).toBe(400);
+    expect(batch).not.toHaveBeenCalled();
+  });
+
+  it('rejects combining existing and new player choices', async () => {
+    const { env, batch } = setup();
+    expect((await createUser(request({ username: 'new-user', password: 'test-password', playerId: 'existing',
+      newPlayer: { name: 'New Player', gender: 'male' } }), env, admin)).status).toBe(400);
+    expect(batch).not.toHaveBeenCalled();
+  });
+
+  it.each(['user', 'coach'] as const)('rejects system player creation by a %s', async (role) => {
+    const { env, batch } = setup();
+    expect((await createUser(request({ username: 'new-user', password: 'test-password',
+      newPlayer: { name: 'New Player', gender: 'male' } }), env, { ...admin, role })).status).toBe(403);
+    expect(batch).not.toHaveBeenCalled();
+  });
+
   it('creates accounts with trimmed, independent profile fields', async () => {
     const { env, bind, prepare } = setup();
     const response = await createUser(request({
       username: 'new-admin', password: 'test-password', role: 'admin',
       name: '  Full Name  ', email: '  account@example.com  ',
-    }), env);
+    }), env, admin);
     expect(response.status).toBe(200);
     expect(prepare).toHaveBeenCalledWith(expect.stringContaining('player_id, name, email'));
     expect(bind).toHaveBeenCalledWith(expect.any(String), 'new-admin', 'admin',
@@ -37,7 +77,7 @@ describe('account name and email', () => {
 
   it('keeps name/email optional for existing clients creating accounts', async () => {
     const { env, bind } = setup();
-    expect((await createUser(request({ username: 'new-coach', password: 'test-password', role: 'coach' }), env)).status).toBe(200);
+    expect((await createUser(request({ username: 'new-coach', password: 'test-password', role: 'coach' }), env, admin)).status).toBe(200);
     expect(bind).toHaveBeenCalledWith(expect.any(String), 'new-coach', 'coach',
       expect.any(String), expect.any(Number), null, null, null);
   });
@@ -68,7 +108,7 @@ describe('account name and email', () => {
       const { env, batch } = setup();
       const response = update
         ? await updateUser(request(fields), env, admin, 'legacy')
-        : await createUser(request({ username: 'new-admin', password: 'test-password', role: 'admin', ...fields }), env);
+        : await createUser(request({ username: 'new-admin', password: 'test-password', role: 'admin', ...fields }), env, admin);
       expect(response.status).toBe(400);
       expect(await response.json()).toHaveProperty('error');
       expect(batch).not.toHaveBeenCalled();

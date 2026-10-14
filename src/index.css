@@ -91,6 +91,52 @@ h2 {
   margin: 0 auto;
 }
 
+.advanced-analysis-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.advanced-analysis {
+  overflow-wrap: anywhere;
+}
+
+.header:has(+ .advanced-analysis) h1 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.advanced-analysis h2 {
+  letter-spacing: 0;
+}
+
+.advanced-analysis section + section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.analysis-match-info {
+  display: grid;
+  grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr);
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.analysis-match-info dt {
+  color: var(--muted);
+}
+
+.analysis-match-info dd {
+  margin: 0;
+}
+
+.analysis-notes {
+  white-space: pre-wrap;
+}
+
 .help-content {
   line-height: 1.6;
   overflow-wrap: anywhere;

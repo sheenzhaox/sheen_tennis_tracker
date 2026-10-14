@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DatabaseSync } from 'node:sqlite';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { VISIBLE_MATCHES } from '../worker/access';
 import { canWriteMatch, canWritePlayer } from '../worker/sync';
-import type { User } from '../worker/http';
+import { createUser, listUsers } from '../worker/admin';
+import type { Env, User } from '../worker/http';
 
 const dir = join(process.cwd(), 'migrations');
 const migrations = readdirSync(dir).filter((file) => file.endsWith('.sql')).sort();
@@ -41,6 +42,104 @@ beforeEach(() => {
   }
 });
 afterEach(() => db.close());
+
+function accountEnvironment(): Env {
+  const operations = new WeakMap<D1PreparedStatement, () => { meta: { changes: number } }>();
+  const prepare = vi.fn((sql: string) => {
+    let values: SQLInputValue[] = [];
+    const query = () => {
+      const prepared = db.prepare(sql.replace(/\?(\d+)/g, (_match, index: string) => `:param${index}`));
+      prepared.setAllowUnknownNamedParameters(true);
+      return prepared;
+    };
+    const parameters = () => Object.fromEntries(values.map((value, index) => [`param${index + 1}`, value]));
+    const statement = {
+      bind: vi.fn().mockImplementation((...bound: SQLInputValue[]) => { values = bound; return statement; }),
+      first: vi.fn().mockImplementation(async () => query().get(parameters()) ?? null),
+      all: vi.fn().mockImplementation(async () => ({ results: query().all(parameters()) })),
+      run: vi.fn(), raw: vi.fn(),
+    };
+    operations.set(statement, () => ({ meta: { changes: Number(query().run(parameters()).changes) } }));
+    return statement;
+  });
+  const batch = vi.fn().mockImplementation(async (statements: D1PreparedStatement[]) => {
+    db.exec('BEGIN');
+    try {
+      const results = statements.map((statement) => {
+        const execute = operations.get(statement);
+        if (!execute) throw new Error('Unknown test statement');
+        return execute();
+      });
+      db.exec('COMMIT');
+      return results;
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  });
+  return { DB: { prepare, batch, exec: vi.fn(), withSession: vi.fn(), dump: vi.fn() },
+    ENVIRONMENT: 'test', ASSETS: { fetch: vi.fn(), connect: vi.fn() } };
+}
+
+describe('inline system player account creation', () => {
+  const admin: User = { id: 'admin', username: 'admin', role: 'admin' };
+  const request = (body: object) => new Request('https://example.com/api/users', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'new-account', password: 'fixture-password', ...body }),
+  });
+  const counts = () => ({
+    users: db.prepare('SELECT COUNT(*) AS count FROM users').get()?.count,
+    players: db.prepare('SELECT COUNT(*) AS count FROM players').get()?.count,
+  });
+
+  it.each(['user', 'coach', 'admin'])('creates a linked system player for a %s account', async (role) => {
+    const env = accountEnvironment();
+    const response = await createUser(request({ role, name: 'Account Name', email: 'account@example.com',
+      newPlayer: { name: ' New Player ', gender: 'female', email: ' player@example.com ' } }), env, admin);
+    expect(response.status).toBe(200);
+    const result = await response.json() as { id: string; playerId: string };
+    expect(db.prepare('SELECT player_id, name, email FROM users WHERE id = ?').get(result.id))
+      .toMatchObject({ player_id: result.playerId, name: 'Account Name', email: 'account@example.com' });
+    const row = db.prepare('SELECT owner_id, created_by, data, synced_at FROM players WHERE id = ?').get(result.playerId);
+    expect(row).toMatchObject({ owner_id: null, created_by: admin.id });
+    expect(Number(row?.synced_at)).toBeGreaterThan(0);
+    expect(JSON.parse(String(row?.data))).toMatchObject({ id: result.playerId, name: 'New Player', gender: 'female', email: 'player@example.com' });
+    expect(await (await listUsers(env)).json()).toMatchObject({ users: expect.arrayContaining([expect.objectContaining({ id: result.id, playerId: result.playerId })]) });
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  });
+
+  it('does not leave an extra player when the username is already taken', async () => {
+    const before = counts();
+    const response = await createUser(request({ username: 'ALICE', newPlayer: { name: 'No orphan', gender: 'male' } }), accountEnvironment(), admin);
+    expect(response.status).toBe(409);
+    expect(counts()).toEqual(before);
+  });
+
+  it('creates only one player/account pair for concurrent duplicate submissions', async () => {
+    const env = accountEnvironment();
+    const responses = await Promise.all([1, 2].map(() => createUser(request({ newPlayer: { name: 'One player', gender: 'male' } }), env, admin)));
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM players WHERE json_extract(data, '$.name') = 'One player'").get()?.count).toBe(1);
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  });
+
+  it('rolls back the account when inserting its player fails', async () => {
+    const before = counts();
+    db.exec(`CREATE TRIGGER reject_inline_player BEFORE INSERT ON players
+      WHEN json_extract(NEW.data, '$.name') = 'Blocked player'
+      BEGIN SELECT RAISE(ABORT, 'test player insert failure'); END;`);
+    await expect(createUser(request({ newPlayer: { name: 'Blocked player', gender: 'male' } }), accountEnvironment(), admin))
+      .rejects.toThrow('test player insert failure');
+    expect(counts()).toEqual(before);
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  });
+
+  it('reuses an explicitly chosen existing system player without inserting another', async () => {
+    const env = accountEnvironment();
+    const before = counts().players;
+    const response = await createUser(request({ playerId: 'system' }), env, admin);
+    expect(response.status).toBe(200);
+    expect(counts().players).toBe(before);
+    expect((await createUser(request({ username: 'another-account', playerId: 'system' }), env, admin)).status).toBe(409);
+  });
+});
 
 describe('club/profile migration and relational access', () => {
   it('adds optional account name/email without guessing them from linked or private player profiles', () => {

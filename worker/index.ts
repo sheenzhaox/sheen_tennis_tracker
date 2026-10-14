@@ -36,7 +36,7 @@ export default {
     const playerNotes = path.match(/^\/api\/players\/([^/]+)\/notes$/);
     if (playerNotes && isId(playerNotes[1]) && ['GET', 'PATCH'].includes(req.method)) return managePlayerNotes(req, env, playerNotes[1]);
     if (path === '/api/users' && req.method === 'GET') return listUsers(env);
-    if (path === '/api/users' && req.method === 'POST') return createUser(req, env);
+    if (path === '/api/users' && req.method === 'POST') return createUser(req, env, user);
     const userMatch = path.match(/^\/api\/users\/([^/]+)$/);
     if (userMatch && isId(userMatch[1]) && req.method === 'PATCH') return updateUser(req, env, user, userMatch[1]);
     const accessMatch = path.match(/^\/api\/matches\/([^/]+)\/access$/);

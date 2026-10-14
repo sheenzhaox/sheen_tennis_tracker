@@ -15,6 +15,7 @@ import UsersPage from './pages/UsersPage';
 import ClubsPage from './pages/ClubsPage';
 import PlayerStatsPage from './pages/PlayerStatsPage';
 import AnalysisPage from './pages/AnalysisPage';
+import AdvancedAnalysisPage from './pages/AdvancedAnalysisPage';
 import MatchStatsPage from './pages/MatchStatsPage';
 import StatsPlayersPage from './pages/StatsPlayersPage';
 import { useSession } from './hooks';
@@ -67,6 +68,7 @@ function Routes() {
       if (id === 'new') return <NewMatchPage />;
       if (id && action === 'edit') return <NewMatchPage id={id} />;
       if (id && action === 'stats') return <StatsPage id={id} returnTo={safeReturn(query.get('return'))} />;
+      if (id && action === 'advanced-analysis') return <AdvancedAnalysisPage key={id} id={id} returnTo={safeReturn(query.get('return'))} />;
       return id ? <MatchPage id={id} /> : <MatchesPage />;
     case 'settings':
       return <SettingsPage />;
