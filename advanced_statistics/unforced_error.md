@@ -39,7 +39,7 @@ No implementation is introduced by this document. Add source/test references, wo
 ## Decision History
 
 - **2026-10-15 - Serve advantage / disadvantage statistics agreed:** receiver UEs feed Serve advantage; double faults and server UEs in Serve disadvantage feed Serve disadvantage; UEs by the player holding the initiative feed neither.
-- **2026-10-15 - Serve Impact State:** UE phase rows use the recorded state (legacy counts mapped). Implemented, not deployed.
+- **2026-10-15 - Serve Impact State:** UE phase rows use the recorded state (legacy counts mapped). Implemented; deployed 2026-10-15 (version `6506990f`).
 - **2026-10-14 - UE inclusion resolved:** Double fault contributes one UE to the server's total with its subtype retained. Return error stays receiver UE despite inclusion in the broader Serve winner filter. Supersedes the earlier open double-fault rollup question; no application changes.
 - **2026-10-13 - Agreed clarification:** Double fault counts as 1; forced errors remain winners credited to the causing player, not UEs. Combined UE-rollup inclusion of double faults is a separate metric decision.
 - **2026-10-13 - Agreed:** Recorded UE attribution, total-shot counting and serve-related / neutralised context while keeping forced errors in the winner category.

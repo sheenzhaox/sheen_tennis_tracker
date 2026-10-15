@@ -36,7 +36,7 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
-- **2026-10-15 - Serve Impact State:** Winner phase rows use the recorded state (legacy counts mapped). Serve + 1 is now an explicitly recorded server winner at shot 3. Implemented, not deployed.
+- **2026-10-15 - Serve Impact State:** Winner phase rows use the recorded state (legacy counts mapped). Serve + 1 is now an explicitly recorded server winner at shot 3. Implemented; deployed 2026-10-15 (version `6506990f`).
 - **2026-10-14 - Cross-topic clarification:** Distinguished the agreed ace + return error Serve winner filter from shot-winner attribution. Serve advantage/win filters describe point results and overlap; they do not redefine Winner Statistics or Summary counts. Documentation only.
 - **2026-10-13 - Confirmed attribution:** A rally forced error is a winner credited to the player who caused it. Final unsuccessful-contact counting remains separate from winner attribution; no calculations changed.
 - **2026-10-13 - Agreed:** Confirmed winner includes forced error and documented shot-count/phase interpretation without introducing a new metric.

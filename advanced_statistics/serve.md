@@ -146,7 +146,7 @@ Limitations: one match gives small samples; Serve Impact State is the scorer's j
 
 #### Unrecorded Location and Type Defaults
 
-**Agreed 2026-10-15 (user); implemented, not deployed.** In Advanced Analysis Serve Statistics, a serve attempt with no recorded location (`serves[].location: 'none'`) counts as **Body**, and one with no recorded type (`serves[].type: 'none'`) counts as **Flat**. This applies to every serve table, the Serve location filter and Location repeats (an unrecorded location now continues the chain as Body instead of breaking it). Saved data and the recording screen are unchanged; the normal stats page keeps its own Not set handling. Fault type (`serves[].fault`) keeps its Not recorded column.
+**Agreed 2026-10-15 (user); implemented and deployed 2026-10-15 (version `202577ab`).** In Advanced Analysis Serve Statistics, a serve attempt with no recorded location (`serves[].location: 'none'`) counts as **Body**, and one with no recorded type (`serves[].type: 'none'`) counts as **Flat**. This applies to every serve table, the Serve location filter and Location repeats (an unrecorded location now continues the chain as Body instead of breaking it). Saved data and the recording screen are unchanged; the normal stats page keeps its own Not set handling. Fault type (`serves[].fault`) keeps its Not recorded column.
 
 - Rationale (assumed): the user treats Body / Flat as the neutral default serve, so unrecorded serves are counted rather than shown separately.
 - Limitation: Body and Flat counts include unrecorded serves, so they can be overstated when recording coverage is low; coverage is no longer visible on this page.
@@ -276,7 +276,7 @@ Before implementation, agree fault/attempt attribution, denominator, defaults/ca
 
 ### Normal Stats Serve Performance
 
-**User request 2026-10-15; implemented, not deployed.** The normal stats page (match, shared-link and player stats) no longer has the **Serve location** section (1st / 2nd in and won ratios by location; `serveLocationStats` removed). In its place, a **Serve performance** section shows the same table as Advanced Analysis Table 2 (shared `ServePerformanceTable` in [StatsPage.tsx](../src/ui/pages/StatsPage.tsx), same `servePerformance` calculation and Body / Flat defaults). Advanced Analysis keeps its copy.
+**User request 2026-10-15; implemented and deployed 2026-10-15 (version `202577ab`).** The normal stats page (match, shared-link and player stats) no longer has the **Serve location** section (1st / 2nd in and won ratios by location; `serveLocationStats` removed). In its place, a **Serve performance** section shows the same table as Advanced Analysis Table 2 (shared `ServePerformanceTable` in [StatsPage.tsx](../src/ui/pages/StatsPage.tsx), same `servePerformance` calculation and Body / Flat defaults). Advanced Analysis keeps its copy.
 
 - Filters: the normal page's Set buttons (multi-select, none = all, as in the other normal sections; hidden in player stats where matches are pre-selected), Player (exactly one; hidden in player stats), then Court side, Serve attempt, Key points (incl. Tiebreak) and Serve location, each one or none (none = all). These replace the old All sides / All points chips; the old Game point / Break point labels are now Game points / Break points and Tiebreak is added.
 - Limitation: the per-location serve-in % on the normal page is gone; the Advanced Analysis Location distribution and Faults tables cover location for completed matches only.
@@ -284,7 +284,7 @@ Before implementation, agree fault/attempt attribution, denominator, defaults/ca
 
 **2026-10-14 - Page structure implemented:** Advanced Analysis reserves a heading-only Serve Statistics section. General Statistics reuses the existing Summary serve ratios unchanged; see the [reused Summary contract](statistics_design.md#reused-summary-contract) for inputs, denominators and exclusions. No new advanced serve metric is implemented.
 
-**2026-10-15 - Serve Impact State implemented (not deployed):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count).
+**2026-10-15 - Serve Impact State implemented (deployed 2026-10-15, version `6506990f`):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count).
 
 **2026-10-15 - Serve Statistics section implemented (deployed 2026-10-15, version `c66bdd25`):** Advanced Analysis Serve Statistics implements the [section plan](#serve-statistics-section-plan).
 
@@ -301,8 +301,8 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
-- **2026-10-15 - Normal stats Serve performance (user):** normal-stats Serve location section removed; Serve performance table copied into normal stats (kept in Advanced Analysis) with Set, Player, Court side, Serve attempt, Key points and Serve location filters. Implemented, not deployed.
-- **2026-10-15 - Unrecorded location / type defaults (user):** Serve Statistics counts an unrecorded location as Body and an unrecorded type as Flat; Not recorded location row / type column removed; Location repeats no longer break on unrecorded locations. Supersedes Decision 4's Not recorded display and the 2026-10-14 "missing location remains Not recorded" rule for this section. Implemented, not deployed.
+- **2026-10-15 - Normal stats Serve performance (user):** normal-stats Serve location section removed; Serve performance table copied into normal stats (kept in Advanced Analysis) with Set, Player, Court side, Serve attempt, Key points and Serve location filters. Implemented; deployed 2026-10-15 (commit `2c46926`, version `202577ab`).
+- **2026-10-15 - Unrecorded location / type defaults (user):** Serve Statistics counts an unrecorded location as Body and an unrecorded type as Flat; Not recorded location row / type column removed; Location repeats no longer break on unrecorded locations. Supersedes Decision 4's Not recorded display and the 2026-10-14 "missing location remains Not recorded" rule for this section. Implemented; deployed 2026-10-15 (commit `2c46926`, version `202577ab`).
 - **2026-10-15 - Single-choice filters (user):** every Serve Statistics filter except Player allows one choice or none (none = all); Player requires exactly one. Supersedes multi-select Set and Key points. UI changed; calculations unchanged.
 - **2026-10-15 - Serve Statistics section deployed:** commit `b6065bb`, Worker version `c66bdd25`.
 - **2026-10-15 - Serve Statistics section implemented:** see [Implementation and Validation](#implementation-and-validation). Fault breakdown applies the Serve attempt filter instead of separate attempt columns.

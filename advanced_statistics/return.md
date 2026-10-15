@@ -30,7 +30,7 @@ For each metric, document its rationale, inputs, eligibility, formula, denominat
 
 ### Return Advantage
 
-**Agreed 2026-10-15 (user definition); implemented in the normal stats Forehand / backhand table, Return games row. Not deployed.** Full definition in [the general design](statistics_design.md#return-advantage-statistic).
+**Agreed 2026-10-15 (user definition); implemented in the normal stats Forehand / backhand table, Return games row. Deployed 2026-10-15.** Full definition in [the general design](statistics_design.md#return-advantage-statistic).
 
 - **Rationale:** measures how often the receiver turned the return into a point won by holding the initiative, without crediting them for the server's double faults.
 - **Counts:** return ace (`end: 'return_winner'`), or receiver winner / server UE in a point with Serve Impact State **Return advantage** (`rally.impact: 'serve_disadvantage'`, or a legacy count of 3-6 ending with a receiver shot).
@@ -50,15 +50,15 @@ No new return or phase calculation is implemented here. Future checks must cover
 
 Apart from the Return advantage row below, no return calculation is implemented by this document.
 
-**2026-10-15 - Return advantage implemented (not deployed):** `strokeStats` in [matchStats.ts](../src/stats/matchStats.ts). **Validated:** [matchStats.test.ts](../src/stats/matchStats.test.ts) checks a total of 2 with forehand 1 / backhand 0 (receiver winner and server UE in Return advantage, double fault excluded) and a return ace in the first fixture; 215 tests and the build pass. Help and the stats-page footnote describe the definition.
+**2026-10-15 - Return advantage implemented (deployed 2026-10-15):** `strokeStats` in [matchStats.ts](../src/stats/matchStats.ts). **Validated:** [matchStats.test.ts](../src/stats/matchStats.test.ts) checks a total of 2 with forehand 1 / backhand 0 (receiver winner and server UE in Return advantage, double fault excluded) and a return ace in the first fixture; 215 tests and the build pass. Help and the stats-page footnote describe the definition.
 
 Add source/test references, worked examples, validation results, and interpretation limits as return statistics are developed. Existing return statistics still need to be inventoried.
 
 ## Decision History
 
-- **2026-10-15 - Return advantage statistic agreed:** return ace, or receiver winner / server UE in a Return advantage point; double faults excluded. Supersedes the winners-only row. Implemented, not deployed.
+- **2026-10-15 - Return advantage statistic agreed:** return ace, or receiver winner / server UE in a Return advantage point; double faults excluded. Supersedes the winners-only row. Implemented; deployed 2026-10-15.
 - **2026-10-15 - Serve advantage / disadvantage statistics agreed:** return error feeds Serve advantage; return ace and receiver winners in Serve disadvantage feed Serve disadvantage. Return advantage row unchanged at that point (resolved in the entry above).
-- **2026-10-15 - Serve Impact State:** Return advantage row redefined from even shot counts to return aces plus receiver winners in Serve disadvantage points. Implemented, not deployed.
+- **2026-10-15 - Serve Impact State:** Return advantage row redefined from even shot counts to return aces plus receiver winners in Serve disadvantage points. Implemented; deployed 2026-10-15 (version `6506990f`).
 - **2026-10-14 - Cross-topic clarification:** Return error is included in the new Serve winner filter while retaining receiver UE attribution and known shot count 2. Return winner maps to serve disadvantage/loss. No calculations or Summary behavior changed.
 - **2026-10-13 - Agreed:** Recorded shot-2 return outcomes, winner/UE separation and early-versus-neutralised phase interpretation; no calculations changed.
 - **2026-10-13:** Established the return-specific design record. The questions above are proposals, not agreed calculations.
