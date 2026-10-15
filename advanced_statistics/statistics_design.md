@@ -42,7 +42,7 @@ Sections appear in this order:
 
 Sections 3-7 contain headings only. No new metrics, phase calculations, charts, or detailed tables are implemented. Future topic sections follow their respective design documents; Other Key Factors remains undesigned. The normal stats page retains all its existing sections.
 
-**Updated 2026-10-15 (implemented, not deployed):** Serve Statistics now has its own filters and five tables (Location distribution, Serve performance, Serve impact, Faults, Serving summary); see [serve.md](serve.md#implementation-and-validation). Sections 4-7 remain heading-only.
+**Updated 2026-10-15 (implemented and deployed):** Serve Statistics now has its own filters and five tables (Location distribution, Serve performance, Serve impact, Faults, Serving summary); see [serve.md](serve.md#implementation-and-validation). Sections 4-7 remain heading-only.
 
 ### Reused Summary Contract
 
@@ -315,7 +315,7 @@ These questions are open, not implemented model decisions:
 
 **Agreed requirement, 2026-10-14; not implemented.** The first advanced serve metric will describe a selected player's serve locations using counts and percentages, filterable by Deuce/Ad, first/second serve, first/game/break point, and Serve winner / Serve advantage / Serve win / Double fault / Serve disadvantage / Serve loss. Details live in [Serve location distribution](serve.md#serve-location-distribution).
 
-**Revision agreed 2026-10-15 (user); implemented 2026-10-15, not deployed:** the Serve Statistics section contains a Serve location distribution (location rows x serve-type columns, column-share %), a Serve performance table (Serve winners, Serve + 1, Win due to serve = Serve advantage, UE during Serve advantage, Double faults, Lost due to serve = Serve disadvantage, Serve score as count and per 100) and a Serve impact table that replaces the Outcome filter. Shared filters: Player (exactly one), plus Set, Court side, Serve attempt, Key points (incl. Tiebreak) and location for performance/impact, each one or none (none = all; revised 2026-10-15 from multi-select). Points are attributed to their last serve attempt. Seven extra metrics agreed. See [Serve Statistics section plan](serve.md#serve-statistics-section-plan).
+**Revision agreed 2026-10-15 (user); implemented and deployed 2026-10-15:** the Serve Statistics section contains a Serve location distribution (location rows x serve-type columns, column-share %), a Serve performance table (Serve winners, Serve + 1, Win due to serve = Serve advantage, UE during Serve advantage, Double faults, Lost due to serve = Serve disadvantage, Serve score as count and per 100) and a Serve impact table that replaces the Outcome filter. Shared filters: Player (exactly one), plus Set, Court side, Serve attempt, Key points (incl. Tiebreak) and location for performance/impact, each one or none (none = all; revised 2026-10-15 from multi-select). Points are attributed to their last serve attempt. Seven extra metrics agreed. See [Serve Statistics section plan](serve.md#serve-statistics-section-plan).
 
 Attempt-based counting, missing-location denominator treatment, filter defaults/cardinality and key-point edge cases remain proposals. Attribution of point outcomes to individual attempts also remains open; point-level outcome meanings are now agreed below. No recording factors or runtime statistics changed.
 
@@ -327,7 +327,7 @@ The Serve winner filter is broader than shot-winner attribution: a return error 
 
 ## Decision Record
 
-- **2026-10-15 - Serve Statistics section implemented (not deployed):** Advanced Analysis Serve Statistics built from the agreed plan, with a Tiebreak key-point option and Direct ending split in the impact table. Fault breakdown uses the Serve attempt filter instead of attempt columns. Validated by unit and render tests; see [serve.md](serve.md#implementation-and-validation).
+- **2026-10-15 - Serve Statistics section implemented (deployed 2026-10-15, version `c66bdd25`):** Advanced Analysis Serve Statistics built from the agreed plan, with a Tiebreak key-point option and Direct ending split in the impact table. Fault breakdown uses the Serve attempt filter instead of attempt columns. Validated by unit and render tests; see [serve.md](serve.md#implementation-and-validation).
 - **2026-10-15 - Serve Statistics section plan agreed:** user answered the open questions (court side none = both; Win / Lost due to serve include the UEs, matching Serve advantage / disadvantage; last-attempt attribution; column-share %; Key points filter kept; Outcome filter replaced by a Serve impact table; Serve score also per 100; one match first) and selected seven extra metrics. Details in [serve.md](serve.md#serve-statistics-section-plan). Not implemented.
 - **2026-10-15 - Serve Statistics section plan proposed:** user proposed the Serve location distribution and Serve performance tables; open questions and suggested extra metrics recorded in [serve.md](serve.md#serve-statistics-section-plan). Not agreed; no code.
 - **2026-10-15 - Serve Impact State and Serve / Return advantage statistics deployed:** release `421903e`, production version `6506990f-c60c-437a-b383-503c9a8a4ab2`. Live bundle matches the local build; no migration needed.

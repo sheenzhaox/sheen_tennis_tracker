@@ -27,7 +27,7 @@ Record ideas and definitions for analysing serve performance from recorded match
 
 ### Serve Statistics Section Plan
 
-**Proposed by the user 2026-10-15; agreed the same day after clarification (answers below); implemented 2026-10-15, not deployed (see [Implementation and Validation](#implementation-and-validation)).** Three tables for the Advanced Analysis Serve Statistics section of one completed match: Serve location distribution, Serve performance and Serve impact, plus the agreed extra metrics. This revises the 2026-10-14 [Serve Location Distribution](#serve-location-distribution) requirement: it adds a Set filter and serve-type columns, keeps the Key points filter, and replaces the Outcome filter with the separate Serve impact table.
+**Proposed by the user 2026-10-15; agreed the same day after clarification (answers below); implemented and deployed 2026-10-15 (see [Implementation and Validation](#implementation-and-validation)).** Three tables for the Advanced Analysis Serve Statistics section of one completed match: Serve location distribution, Serve performance and Serve impact, plus the agreed extra metrics. This revises the 2026-10-14 [Serve Location Distribution](#serve-location-distribution) requirement: it adds a Set filter and serve-type columns, keeps the Key points filter, and replaces the Outcome filter with the separate Serve impact table.
 
 #### Shared Filters (agreed)
 
@@ -270,7 +270,7 @@ Before implementation, agree fault/attempt attribution, denominator, defaults/ca
 
 **2026-10-15 - Serve Impact State implemented (not deployed):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count).
 
-**2026-10-15 - Serve Statistics section implemented (not deployed):** Advanced Analysis Serve Statistics implements the [section plan](#serve-statistics-section-plan).
+**2026-10-15 - Serve Statistics section implemented (deployed 2026-10-15, version `c66bdd25`):** Advanced Analysis Serve Statistics implements the [section plan](#serve-statistics-section-plan).
 
 - Filters: Player (exactly one); Set, Court side, Serve attempt, Key points (First point / Game points / Break points / Tiebreak) each one or none, none = all; Serve location (one or none) sits above the performance table and applies to performance and impact only.
 - Tables: Location distribution (attempts, column share, plus a Serves total row); Serve performance (Total and serve-type columns, count and % of the column's service points, coloured rows, Serve score with per-100 value); Serve impact (Direct ending subtotal with four sub-rows, Points, % of $N$, Won, Won %); Faults (location x fault type, % of all faults shown); Serving summary (Service games held, Break points saved, Location repeats as n/d (%)).
@@ -286,7 +286,8 @@ No implementation is introduced by this document. Add source/test references, wo
 ## Decision History
 
 - **2026-10-15 - Single-choice filters (user):** every Serve Statistics filter except Player allows one choice or none (none = all); Player requires exactly one. Supersedes multi-select Set and Key points. UI changed; calculations unchanged.
-- **2026-10-15 - Serve Statistics section implemented (not deployed):** see [Implementation and Validation](#implementation-and-validation). Fault breakdown applies the Serve attempt filter instead of separate attempt columns.
+- **2026-10-15 - Serve Statistics section deployed:** commit `b6065bb`, Worker version `c66bdd25`.
+- **2026-10-15 - Serve Statistics section implemented:** see [Implementation and Validation](#implementation-and-validation). Fault breakdown applies the Serve attempt filter instead of separate attempt columns.
 - **2026-10-15 - Tiebreak key point and Table 3 rows agreed:** Key points adds a Tiebreak option (all tiebreak / match-tiebreak points); First / Game / Break points stay regular-game only. Table 3 keeps Direct ending as a subtotal and splits it into Ace / Return error / Double fault / Return winner. Design complete; not implemented.
 - **2026-10-15 - Key points and predictability agreed:** Key points filter is multi-select (none = all). Location predictability compares serves on the same side only; chain follows the Set filter (none selected = continuous across all sets). Not implemented.
 
