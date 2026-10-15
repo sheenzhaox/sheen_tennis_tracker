@@ -38,8 +38,15 @@ describe('rally shot options and stats', () => {
     expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
     expect(tables[3]).toContain('<th>- Double fault</th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
     expect(advanced).toContain('>Set 1</button>');
-    expect(advanced).toContain('Not recorded');
+    // Unrecorded match information is hidden; unrecorded serve location/type count as Body/Flat.
+    expect(advanced).not.toContain('<dt>Event</dt>');
+    expect(advanced).not.toContain('Type not recorded');
+    expect(tables[1]).toContain('<th>Body</th><td>3 (100%)</td><td>3 (100%)</td>');
     expect(normal).not.toContain('Advanced Analysis');
+    expect(normal).not.toContain('<h2>Serve location</h2>');
+    expect(normal).toContain('<h2>Serve performance</h2>');
+    for (const label of ['Court side', 'Serve attempt', 'Key points', 'Serve location']) expect(normal).toContain(`aria-label="${label}"`);
+    expect(normal).toContain('<th><strong>Service points</strong></th><td>2</td>');
   });
 
   it.each([false, true])('offers optional incoming controls after shot position (busy=%s)', (busy) => {

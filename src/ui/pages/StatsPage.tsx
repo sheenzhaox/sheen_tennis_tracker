@@ -13,23 +13,35 @@ import {
   isLuckyBall,
   pointContexts,
   rallyWinnerStats,
-  serveLocationStats,
+  servePerformance,
   setOptions,
   shotTypeStats,
   strokeStats,
   summary,
   type GameFilter,
+  type KeyPoint,
   type PositionFilter,
+  type ServeKind,
+  type ServePerformance,
+  type ServeSpot,
   type SetOption,
-  type SideFilter,
-  type SituationFilter,
   type StrokeFilter,
   type PointContext,
 } from '../../stats/matchStats';
-import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
+import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SERVE_TYPES, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
+const pct1 = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '-');
+const tone = (n: number) => (n > 0 ? 'stat-good' : n < 0 ? 'stat-bad' : 'stat-even');
+const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
+export const KEY_POINTS: { value: KeyPoint; label: string }[] = [
+  { value: 'first', label: 'First point' },
+  { value: 'game', label: 'Game points' },
+  { value: 'break', label: 'Break points' },
+  { value: 'tiebreak', label: 'Tiebreak' },
+];
 
 export function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
   return (
@@ -54,6 +66,58 @@ function ToggleChips<T extends string>({ value, options, onChange }: { value: T 
       ))}
     </div>
   );
+}
+
+/** At most one choice; tapping the selected chip clears it (none selected = all). */
+export function OptionalChips<T extends string | number>({ label, options, value, onChange }: {
+  label: string; options: { value: T; label: string }[]; value: T[]; onChange: (v: T[]) => void;
+}) {
+  return (
+    <div className="chips" role="group" aria-label={label}>
+      {options.map((o) => {
+        const on = value.includes(o.value);
+        return (
+          <button key={o.value} type="button" className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
+            onClick={() => onChange(on ? [] : [o.value])}>
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Serve performance in total and by the serve type of each point's last serve. */
+export function ServePerformanceTable({ perf }: { perf: Record<ServeKind | 'all', ServePerformance> }) {
+  const columns: (ServeKind | 'all')[] = ['all', ...SERVE_TYPES.map((t) => t.value)];
+  const row = (label: string, className: string, key: keyof ServePerformance): ReactNode[] =>
+    [<span className={className}>{label}</span>, ...columns.map((c) => `${perf[c][key]} (${pct1(perf[c][key], perf[c].points)})`)];
+  return <>
+    <Table
+      head={['', 'Total', ...SERVE_TYPES.map((t) => t.label)]}
+      rows={[
+        [<strong>Service points</strong>, ...columns.map((c) => perf[c].points)],
+        row('Serve winners', 'stat-good', 'serveWinners'),
+        row('Serve + 1', 'stat-good', 'servePlusOne'),
+        row('Win due to serve', 'stat-good', 'wonDueToServe'),
+        row('UE during Serve advantage', 'stat-bad', 'ueInAdvantage'),
+        row('Double faults', 'stat-bad', 'doubleFaults'),
+        row('Lost due to serve', 'stat-bad', 'lostDueToServe'),
+        ['Serve score', ...columns.map((c) => {
+          const score = perf[c].wonDueToServe - perf[c].lostDueToServe;
+          const per100 = perf[c].points ? `${signed(Math.round((score / perf[c].points) * 1000) / 10)} / 100` : '-';
+          return <span className={tone(score)}>{signed(score)} ({per100})</span>;
+        })],
+      ]}
+    />
+    <p className="muted small">
+      Points count under their last serve (2nd serve includes double faults); type columns use that serve's type, with an
+      unrecorded type counted as Flat and an unrecorded location as Body. % = share of the column's service points. Rows overlap
+      and must not be added up. Win due to serve = ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage
+      point. Lost due to serve = double fault, return ace, or receiver winner / server UE in a Return advantage point. Serve score =
+      Win - Lost due to serve, also per 100 service points.
+    </p>
+  </>;
 }
 
 export function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
@@ -161,8 +225,10 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
   back?: string; sharing?: ReactNode; controls?: ReactNode; footer?: ReactNode; contexts?: PointContext[]; aggregate?: string; playerOnly?: boolean;
 }) {
   const [server, setServer] = useState<Side>('A');
-  const [side, setSide] = useState<SideFilter>('all');
-  const [situation, setSituation] = useState<SituationFilter>('all');
+  const [serveSides, setServeSides] = useState<('deuce' | 'ad')[]>([]);
+  const [attempts, setAttempts] = useState<number[]>([]);
+  const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([]);
+  const [locations, setLocations] = useState<ServeSpot[]>([]);
   const [strokePlayer, setStrokePlayer] = useState<Side>('A');
   const [games, setGames] = useState<GameFilter>('all');
   const [winnerStroke, setWinnerStroke] = useState<'forehand' | 'backhand'>('forehand');
@@ -178,7 +244,9 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
   const sel = (s: Section) => sets[s] ?? [];
   const inSets = (s: Section) => filterSets(ctxs, sel(s));
   const setChips = (s: Section) => contexts ? null : <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
-  const loc = serveLocationStats(inSets('serve'), playerOnly ? 'A' : server, side, situation);
+  const perf = servePerformance(ctxs, {
+    server: playerOnly ? 'A' : server, sets: contexts ? [] : sel('serve'), sides: serveSides, attempts, keyPoints, locations,
+  });
   const strokes = strokeStats(inSets('stroke'), playerOnly ? 'A' : strokePlayer, games);
   const rw = rallyWinnerStats(inSets('winners'), winnerStroke);
   const shots = shotTypeStats(inSets('shots'), shotStroke);
@@ -192,7 +260,6 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
   const players: Side[] = playerOnly ? ['A'] : ['A', 'B'];
   const both = (f: (s: Side) => ReactNode): ReactNode[] => players.map(f);
   const playerNames = players.map((s) => s === 'A' ? a : b);
-  const locLabel = (v: string) => SERVE_LOCATIONS.find((l) => l.value === v)?.label ?? 'Not set';
 
   return (
     <>
@@ -214,41 +281,15 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
         <h2>Summary</h2>
         <SummaryStats contexts={ctxs} nameA={a} nameB={b} playerOnly={playerOnly} showSets={!contexts} />
 
-        <h2>Serve location</h2>
+        <h2>Serve performance</h2>
         {setChips('serve')}
         {!playerOnly && <Chips value={server} onChange={setServer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />}
-        <Chips
-          value={side}
-          onChange={setSide}
-          options={[
-            { value: 'all', label: 'All sides' },
-            { value: 'deuce', label: 'Deuce' },
-            { value: 'ad', label: 'Ad' },
-          ]}
-        />
-        <Chips
-          value={situation}
-          onChange={setSituation}
-          options={[
-            { value: 'all', label: 'All points' },
-            { value: 'first', label: 'First point' },
-            { value: 'game', label: 'Game point' },
-            { value: 'break', label: 'Break point' },
-          ]}
-        />
-        <Table
-          head={['', '1st: in', '1st: won', '2nd: in', '2nd: won']}
-          rows={(['wide', 'body', 't', 'none'] as const).map((l) => [
-            locLabel(l),
-            ratio(loc[l].first.in, loc[l].first.count),
-            ratio(loc[l].first.won, loc[l].first.in),
-            ratio(loc[l].second.in, loc[l].second.count),
-            ratio(loc[l].second.won, loc[l].second.in),
-          ])}
-        />
-        <p className="muted small">
-          "in" = serves in / serves hit at that location; "won" = points won / serves in.
-        </p>
+        <OptionalChips label="Court side" options={[{ value: 'deuce', label: 'Deuce' }, { value: 'ad', label: 'Ad' }]} value={serveSides} onChange={setServeSides} />
+        <OptionalChips label="Serve attempt" options={[{ value: 1, label: '1st serve' }, { value: 2, label: '2nd serve' }]} value={attempts} onChange={setAttempts} />
+        <OptionalChips label="Key points" options={KEY_POINTS} value={keyPoints} onChange={setKeyPoints} />
+        <OptionalChips label="Serve location" options={SERVE_LOCATIONS} value={locations} onChange={setLocations} />
+        <p className="muted small">Side, serve, key point and location: pick one or none; none selected = all.</p>
+        <ServePerformanceTable perf={perf} />
 
         <h2>Forehand / backhand</h2>
         {setChips('stroke')}

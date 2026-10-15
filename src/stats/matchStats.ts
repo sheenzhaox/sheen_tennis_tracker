@@ -1,10 +1,8 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
-import type { Match, Point, ReturnError, Rules, ServeImpact, ServeLocation, ServeType, ShotDirection, ShotType, Side } from '../model/types';
+import type { Match, Point, ReturnError, Rules, Serve, ServeImpact, ServeLocation, ServeType, ShotDirection, ShotType, Side } from '../model/types';
 import { RECORDED_SHOT_TYPES, rallyWonByServer } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
-export type SideFilter = 'all' | 'deuce' | 'ad';
-export type SituationFilter = 'all' | Situation;
 export type GameFilter = 'all' | 'serve' | 'return';
 
 export interface PointContext {
@@ -146,42 +144,6 @@ export function summary(ctxs: PointContext[]): PerSide<Summary> {
   return s;
 }
 
-export interface ServeCell {
-  count: number;
-  in: number;
-  won: number;
-}
-
-export type ServeLocationStats = Record<ServeLocation, { first: ServeCell; second: ServeCell }>;
-
-const LOCATIONS: ServeLocation[] = ['wide', 'body', 't', 'none'];
-
-export function serveLocationStats(
-  ctxs: PointContext[],
-  server: Side,
-  side: SideFilter,
-  situation: SituationFilter,
-): ServeLocationStats {
-  const cell = (): ServeCell => ({ count: 0, in: 0, won: 0 });
-  const out = Object.fromEntries(LOCATIONS.map((l) => [l, { first: cell(), second: cell() }])) as ServeLocationStats;
-  for (const c of ctxs) {
-    const p = c.point;
-    if (isLuckyBall(p)) continue;
-    if (p.server !== server || p.serves.length === 0) continue;
-    if (side !== 'all' && c.side !== side) continue;
-    if (situation !== 'all' && !c.situations.has(situation)) continue;
-    p.serves.forEach((s, i) => {
-      const target = out[s.location][i === 0 ? 'first' : 'second'];
-      target.count++;
-      if (s.result !== 'fault') {
-        target.in++;
-        if (p.winner === server) target.won++;
-      }
-    });
-  }
-  return out;
-}
-
 export interface WinnerErrorCount {
   winners: number;
   errors: number;
@@ -296,6 +258,8 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
 }
 
 export type KeyPoint = Situation | 'tiebreak';
+export type ServeSpot = Exclude<ServeLocation, 'none'>;
+export type ServeKind = Exclude<ServeType, 'none'>;
 
 /** Advanced Analysis serve filters; an empty list means no restriction. */
 export interface ServeFilters {
@@ -304,10 +268,14 @@ export interface ServeFilters {
   sides: ('deuce' | 'ad')[];
   attempts: number[];
   keyPoints: KeyPoint[];
-  locations: ServeLocation[];
+  locations: ServeSpot[];
 }
 
-const SERVE_TYPE_KEYS: ServeType[] = ['flat', 'slice', 'kick', 'none'];
+const SPOTS: ServeSpot[] = ['wide', 'body', 't'];
+const KINDS: ServeKind[] = ['flat', 'slice', 'kick'];
+// Advanced serve statistics treat an unrecorded location as Body and an unrecorded type as Flat.
+export const spotOf = (s: Serve): ServeSpot => (s.location === 'none' ? 'body' : s.location);
+export const kindOf = (s: Serve): ServeKind => (s.type === 'none' ? 'flat' : s.type);
 const chosen = <T>(list: T[], value: T) => list.length === 0 || list.includes(value);
 const isKeyPoint = (c: PointContext, keys: KeyPoint[]) =>
   keys.length === 0 || keys.some((k) => (k === 'tiebreak' ? c.before.inTiebreak : c.situations.has(k)));
@@ -321,17 +289,17 @@ function recordedServes(ctxs: PointContext[], f: ServeFilters): PointContext[] {
 /** Service points attributed to their last serve attempt, filtered by that attempt's number and location. */
 function servicePoints(ctxs: PointContext[], f: ServeFilters): Point[] {
   return recordedServes(ctxs, f).map((c) => c.point)
-    .filter((p) => chosen(f.attempts, p.serves.length) && chosen(f.locations, p.serves.at(-1)!.location));
+    .filter((p) => chosen(f.attempts, p.serves.length) && chosen(f.locations, spotOf(p.serves.at(-1)!)));
 }
 
-export type LocationTypeCounts = Record<ServeLocation, Record<ServeType, number>>;
+export type LocationTypeCounts = Record<ServeSpot, Record<ServeKind, number>>;
 
 /** Serve attempts (faults included) by location and serve type. The location filter does not apply. */
 export function serveDistribution(ctxs: PointContext[], f: ServeFilters): LocationTypeCounts {
-  const out = Object.fromEntries(LOCATIONS.map((l) => [l, Object.fromEntries(SERVE_TYPE_KEYS.map((t) => [t, 0]))])) as LocationTypeCounts;
+  const out = Object.fromEntries(SPOTS.map((l) => [l, Object.fromEntries(KINDS.map((t) => [t, 0]))])) as LocationTypeCounts;
   for (const { point: p } of recordedServes(ctxs, f)) {
     p.serves.forEach((s, i) => {
-      if (chosen(f.attempts, i + 1)) out[s.location][s.type]++;
+      if (chosen(f.attempts, i + 1)) out[spotOf(s)][kindOf(s)]++;
     });
   }
   return out;
@@ -348,14 +316,14 @@ export interface ServePerformance {
 }
 
 /** Serve performance in total and by the serve type of the attributed (last) attempt. */
-export function servePerformance(ctxs: PointContext[], f: ServeFilters): Record<ServeType | 'all', ServePerformance> {
+export function servePerformance(ctxs: PointContext[], f: ServeFilters): Record<ServeKind | 'all', ServePerformance> {
   const empty = (): ServePerformance => ({
     points: 0, serveWinners: 0, servePlusOne: 0, wonDueToServe: 0, ueInAdvantage: 0, doubleFaults: 0, lostDueToServe: 0,
   });
-  const out = Object.fromEntries((['all', ...SERVE_TYPE_KEYS] as const).map((t) => [t, empty()])) as Record<ServeType | 'all', ServePerformance>;
+  const out = Object.fromEntries((['all', ...KINDS] as const).map((t) => [t, empty()])) as Record<ServeKind | 'all', ServePerformance>;
   for (const p of servicePoints(ctxs, f)) {
     const impact = serveImpact(p);
-    for (const row of [out.all, out[p.serves.at(-1)!.type]]) {
+    for (const row of [out.all, out[kindOf(p.serves.at(-1)!)]]) {
       row.points++;
       if (p.end === 'ace' || p.end === 'return_error') row.serveWinners++;
       if (impact === 'serve_plus_one') row.servePlusOne++;
@@ -384,11 +352,11 @@ export function serveImpactStats(ctxs: PointContext[], f: ServeFilters): Record<
 }
 
 /** Serve faults by location and fault type. The location filter does not apply. */
-export function serveFaults(ctxs: PointContext[], f: ServeFilters): Record<ServeLocation, Record<ReturnError, number>> {
-  const out = Object.fromEntries(LOCATIONS.map((l) => [l, { net: 0, long: 0, wide: 0, none: 0 }])) as Record<ServeLocation, Record<ReturnError, number>>;
+export function serveFaults(ctxs: PointContext[], f: ServeFilters): Record<ServeSpot, Record<ReturnError, number>> {
+  const out = Object.fromEntries(SPOTS.map((l) => [l, { net: 0, long: 0, wide: 0, none: 0 }])) as Record<ServeSpot, Record<ReturnError, number>>;
   for (const { point: p } of recordedServes(ctxs, f)) {
     p.serves.forEach((s, i) => {
-      if (s.result === 'fault' && chosen(f.attempts, i + 1)) out[s.location][s.fault ?? 'none']++;
+      if (s.result === 'fault' && chosen(f.attempts, i + 1)) out[spotOf(s)][s.fault ?? 'none']++;
     });
   }
   return out;
@@ -421,10 +389,10 @@ export function serviceGamesHeld(match: Match, ctxs: PointContext[], f: ServeFil
 
 /**
  * Serves whose location repeats the server's previous serve on the same court side and attempt number.
- * The chain runs through the selected sets in match order; Not recorded breaks it.
+ * The chain runs through the selected sets in match order; an unrecorded location counts as Body.
  */
 export function locationRepeats(ctxs: PointContext[], f: ServeFilters): { repeats: number; compared: number } {
-  const last = new Map<string, ServeLocation>();
+  const last = new Map<string, ServeSpot>();
   let repeats = 0;
   let compared = 0;
   for (const { point: p, side } of filterSets(ctxs, f.sets)) {
@@ -433,15 +401,12 @@ export function locationRepeats(ctxs: PointContext[], f: ServeFilters): { repeat
       if (!chosen(f.attempts, i + 1)) return;
       const key = `${side}:${i + 1}`;
       const previous = last.get(key);
-      if (s.location === 'none') {
-        last.delete(key);
-        return;
-      }
+      const spot = spotOf(s);
       if (previous) {
         compared++;
-        if (previous === s.location) repeats++;
+        if (previous === spot) repeats++;
       }
-      last.set(key, s.location);
+      last.set(key, spot);
     });
   }
   return { repeats, compared };

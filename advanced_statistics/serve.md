@@ -44,8 +44,8 @@ Different filters combine with AND. **Revised 2026-10-15 (user):** no filter all
 
 #### Table 1: Serve Location Distribution (agreed)
 
-- Rows: serve location Wide, Body, T, Not recorded.
-- Columns: Total count and %; then count and % for each serve type Flat, Slice, Kick, Type not recorded. Source: `serves[].type`.
+- Rows: serve location Wide, Body, T. ~~Not recorded~~ row removed 2026-10-15: an unrecorded location counts as Body (see [Unrecorded Location and Type Defaults](#unrecorded-location-and-type-defaults)).
+- Columns: Total count and %; then count and % for each serve type Flat, Slice, Kick. Source: `serves[].type`. ~~Type not recorded~~ column removed 2026-10-15: an unrecorded type counts as Flat.
 - Unit: serve attempts including faults; with both attempts selected, a point with a first fault contributes two attempts. The serve-location filter does not apply (location is the row).
 - **Percentage basis (agreed):** column share, count / that column's total, so each column sums to 100% and shows where that serve type goes. Empty column shows `-`.
 
@@ -95,7 +95,7 @@ Replaces the 2026-10-14 Outcome filter (user decision): instead of filtering the
 1. Court side: none selected = both sides (sometimes the side does not matter).
 2. Win due to serve includes receiver UEs in Serve advantage; Lost due to serve includes server UEs in Return advantage. Both now equal the agreed Serve advantage / Serve disadvantage statistics.
 3. Attempt attribution: last attempt, as above.
-4. Table 1: column-share percentages; Not recorded location row and type column shown.
+4. Table 1: column-share percentages; Not recorded location row and type column shown. **Superseded 2026-10-15:** unrecorded location = Body, unrecorded type = Flat; no Not recorded row or column.
 5. Key points filter added; the Outcome filter becomes the new Serve impact table.
 6. Serve score: count and per 100 service points.
 7. Scope: one completed match first; cross-match player stats may follow later (pool counts, do not average percentages).
@@ -116,11 +116,11 @@ Selected by the user from the suggestions. Formulas and filter applicability are
 | --- | --- | --- | --- |
 | Advantage conversion % | (Server winners + receiver UEs in Serve advantage) / Serve advantage points | `rally.impact`, `rally.ending` | All Table 2 filters; shown in Table 3 |
 | Neutralised points won % | Server wins / Neutralised service points | `rally.impact`, `winner` | All Table 2 filters; shown in Table 3 |
-| Fault breakdown | Net / Long / Wide / Not recorded fault counts by location (rows); % = share of all faults shown | `serves[].fault`, `serves[].location` | Set, Player, Court side, Key points, Serve attempt (revised at implementation: the attempt filter replaces separate 1st / 2nd columns to keep the table narrow on phones); unit = fault attempts |
-| Performance by serve type | Table 2 split into Flat / Slice / Kick / Type not recorded columns | `serves[].type` of the attributed attempt | All Table 2 filters |
+| Fault breakdown | Net / Long / Wide / Not recorded fault counts by location (rows Wide / Body / T; unrecorded location = Body since 2026-10-15); % = share of all faults shown | `serves[].fault`, `serves[].location` | Set, Player, Court side, Key points, Serve attempt (revised at implementation: the attempt filter replaces separate 1st / 2nd columns to keep the table narrow on phones); unit = fault attempts |
+| Performance by serve type | Table 2 split into Flat / Slice / Kick columns (unrecorded type = Flat since 2026-10-15) | `serves[].type` of the attributed attempt | All Table 2 filters |
 | Pressure serving | Key points filter applied to Tables 2-3, plus Break points saved % = break points won by server / break points faced | `situationsOf`, `winner` | Set, Player, Court side; no attempt/location filter for saved %. Manual and Lucky ball points count (only the winner is needed) |
 | Service games held % | Completed service games won / completed service games | Replayed score | Set, Player only; unfinished games excluded |
-| Location predictability | Share of serves whose location repeats the server's previous serve on the same court side (Deuce compared only with Deuce, Ad only with Ad) and the same attempt number | Ordered points, `serves[].location` | Set, Player, Court side, Serve attempt. Chain continuity follows the Set filter (agreed): the selected set only, or continuous across the whole match when none is selected. Not recorded breaks the chain |
+| Location predictability | Share of serves whose location repeats the server's previous serve on the same court side (Deuce compared only with Deuce, Ad only with Ad) and the same attempt number | Ordered points, `serves[].location` | Set, Player, Court side, Serve attempt. Chain continuity follows the Set filter (agreed): the selected set only, or continuous across the whole match when none is selected. Not recorded breaks the chain (superseded 2026-10-15: an unrecorded location counts as Body and continues the chain) |
 
 Not selected: 1st / 2nd serve in %, 1st / 2nd serve points won %, Return-advantage recovery % (remain ideas). The Serve impact distribution became Table 3.
 
@@ -142,7 +142,15 @@ Not selected: 1st / 2nd serve in %, 1st / 2nd serve points won %, Return-advanta
 | Service games held % | Service games won / service games | Replayed score | Overall outcome of serving. |
 | Location predictability | Share of serves repeating the previous location on the same side and attempt | Ordered points | Whether the returner can read a pattern. |
 
-Limitations: one match gives small samples; Serve Impact State is the scorer's judgement; location and type are optional, so report Not recorded coverage.
+Limitations: one match gives small samples; Serve Impact State is the scorer's judgement; location and type are optional, so report Not recorded coverage. **Revised 2026-10-15:** Serve Statistics no longer shows coverage; see below.
+
+#### Unrecorded Location and Type Defaults
+
+**Agreed 2026-10-15 (user); implemented, not deployed.** In Advanced Analysis Serve Statistics, a serve attempt with no recorded location (`serves[].location: 'none'`) counts as **Body**, and one with no recorded type (`serves[].type: 'none'`) counts as **Flat**. This applies to every serve table, the Serve location filter and Location repeats (an unrecorded location now continues the chain as Body instead of breaking it). Saved data and the recording screen are unchanged; the normal stats page keeps its own Not set handling. Fault type (`serves[].fault`) keeps its Not recorded column.
+
+- Rationale (assumed): the user treats Body / Flat as the neutral default serve, so unrecorded serves are counted rather than shown separately.
+- Limitation: Body and Flat counts include unrecorded serves, so they can be overstated when recording coverage is low; coverage is no longer visible on this page.
+- Implementation: `spotOf` / `kindOf` in [matchStats.ts](../src/stats/matchStats.ts). Validation: [matchStats.test.ts](../src/stats/matchStats.test.ts) advanced serve tests (distribution, faults, repeats) and [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx).
 
 ### Serve Location Distribution
 
@@ -260,11 +268,19 @@ For an advantage/disadvantage-filtered location distribution, both numerator and
 
 #### Implementation Boundary and Future Checks
 
-**Not implemented.** Existing [serveLocationStats, pointContexts and situationsOf](../src/stats/matchStats.ts) provide nearby source references, but the current Serve location table displays in/won ratios, not this proposed distribution, and has no six-category outcome filter. Existing [statistics tests](../src/stats/matchStats.test.ts) do not validate the new design.
+**Not implemented.** Existing [serveLocationStats, pointContexts and situationsOf](../src/stats/matchStats.ts) provide nearby source references, but the current Serve location table displays in/won ratios, not this proposed distribution, and has no six-category outcome filter. Existing [statistics tests](../src/stats/matchStats.test.ts) do not validate the new design. **Update 2026-10-15:** the normal-stats Serve location table and `serveLocationStats` were removed (see [Normal Stats Serve Performance](#normal-stats-serve-performance)).
 
 Before implementation, agree fault/attempt attribution, denominator, defaults/cardinality and key-point edge cases. Future tests should cover both players; deuce/ad; first/second attempts and two-attempt counting; location/fault-type separation; each combined filter; no-ad overlap; tiebreak exclusions; missing location, context, serves and legacy counts; Lucky/manual exclusions with preserved score replay; empty denominators and rounding. Outcome regressions must cover ace/return error in Serve winner, the overlapping win/loss subsets, each Serve Impact State × ending combination and the legacy count mapping, unknown states excluded only from advantage/disadvantage, fixed direct-ending counts without rally metadata, and double fault counted once as server UE. Preserve separate receiver-UE attribution and unchanged Summary totals. No new runtime validation is claimed by this design update.
 
 ## Implementation and Validation
+
+### Normal Stats Serve Performance
+
+**User request 2026-10-15; implemented, not deployed.** The normal stats page (match, shared-link and player stats) no longer has the **Serve location** section (1st / 2nd in and won ratios by location; `serveLocationStats` removed). In its place, a **Serve performance** section shows the same table as Advanced Analysis Table 2 (shared `ServePerformanceTable` in [StatsPage.tsx](../src/ui/pages/StatsPage.tsx), same `servePerformance` calculation and Body / Flat defaults). Advanced Analysis keeps its copy.
+
+- Filters: the normal page's Set buttons (multi-select, none = all, as in the other normal sections; hidden in player stats where matches are pre-selected), Player (exactly one; hidden in player stats), then Court side, Serve attempt, Key points (incl. Tiebreak) and Serve location, each one or none (none = all). These replace the old All sides / All points chips; the old Game point / Break point labels are now Game points / Break points and Tiebreak is added.
+- Limitation: the per-location serve-in % on the normal page is gone; the Advanced Analysis Location distribution and Faults tables cover location for completed matches only.
+- Validation: [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx) checks the section heading, filter groups and Service points; the Lucky ball regressions in [matchStats.test.ts](../src/stats/matchStats.test.ts) now check `servePerformance` instead of `serveLocationStats`.
 
 **2026-10-14 - Page structure implemented:** Advanced Analysis reserves a heading-only Serve Statistics section. General Statistics reuses the existing Summary serve ratios unchanged; see the [reused Summary contract](statistics_design.md#reused-summary-contract) for inputs, denominators and exclusions. No new advanced serve metric is implemented.
 
@@ -285,6 +301,8 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Normal stats Serve performance (user):** normal-stats Serve location section removed; Serve performance table copied into normal stats (kept in Advanced Analysis) with Set, Player, Court side, Serve attempt, Key points and Serve location filters. Implemented, not deployed.
+- **2026-10-15 - Unrecorded location / type defaults (user):** Serve Statistics counts an unrecorded location as Body and an unrecorded type as Flat; Not recorded location row / type column removed; Location repeats no longer break on unrecorded locations. Supersedes Decision 4's Not recorded display and the 2026-10-14 "missing location remains Not recorded" rule for this section. Implemented, not deployed.
 - **2026-10-15 - Single-choice filters (user):** every Serve Statistics filter except Player allows one choice or none (none = all); Player requires exactly one. Supersedes multi-select Set and Key points. UI changed; calculations unchanged.
 - **2026-10-15 - Serve Statistics section deployed:** commit `b6065bb`, Worker version `c66bdd25`.
 - **2026-10-15 - Serve Statistics section implemented:** see [Implementation and Validation](#implementation-and-validation). Fault breakdown applies the Serve attempt filter instead of separate attempt columns.

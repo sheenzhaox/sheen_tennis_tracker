@@ -6,7 +6,7 @@ import { usePlayerNames } from '../hooks';
 import { formatMatchDay, surfaceLabel } from '../format';
 import { describeRules } from '../../model/rules';
 import { finalisationLabel } from '../../model/match';
-import { SERVE_LOCATIONS, SERVE_TYPES, type Match, type Point, type ServeLocation, type ServeType, type Side } from '../../model/types';
+import { SERVE_LOCATIONS, SERVE_TYPES, type Match, type Point, type Side } from '../../model/types';
 import {
   breakPointsSaved,
   locationRepeats,
@@ -20,9 +20,10 @@ import {
   type KeyPoint,
   type PointContext,
   type ServeFilters,
-  type ServePerformance,
+  type ServeKind,
+  type ServeSpot,
 } from '../../stats/matchStats';
-import { Chips, SummaryStats, Table } from './StatsPage';
+import { Chips, KEY_POINTS, OptionalChips, ServePerformanceTable, SummaryStats, Table } from './StatsPage';
 
 export default function AdvancedAnalysisPage({ id, returnTo }: { id: string; returnTo?: string | null }) {
   const match = useLiveQuery(async () => {
@@ -55,11 +56,11 @@ export function AdvancedAnalysisView({ match, points, nameA, nameB, back }: {
         <h2 id="analysis-match">Match Information</h2>
         <p className="analysis-players"><strong>{nameA} vs {nameB}</strong></p>
         <dl className="analysis-match-info">
-          <dt>Date</dt><dd>{formatMatchDay(match) || 'Not recorded'}</dd>
-          <dt>Location</dt><dd>{match.venue || 'Not recorded'}</dd>
-          <dt>Event</dt><dd>{match.event || 'Not recorded'}</dd>
-          <dt>Round</dt><dd>{match.round || 'Not recorded'}</dd>
-          <dt>Surface</dt><dd>{surfaceLabel(match.surface) || 'Not recorded'}</dd>
+          {formatMatchDay(match) && <><dt>Date</dt><dd>{formatMatchDay(match)}</dd></>}
+          {match.venue && <><dt>Location</dt><dd>{match.venue}</dd></>}
+          {match.event && <><dt>Event</dt><dd>{match.event}</dd></>}
+          {match.round && <><dt>Round</dt><dd>{match.round}</dd></>}
+          {surfaceLabel(match.surface) && <><dt>Surface</dt><dd>{surfaceLabel(match.surface)}</dd></>}
           <dt>Format</dt><dd>{match.ruleSetName}<br />{describeRules(match.rules)}</dd>
           {match.firstServer && <><dt>First server</dt><dd>{match.firstServer === 'A' ? nameA : nameB}</dd></>}
           {match.ownerName && <><dt>Recorded by</dt><dd>{match.ownerName}</dd></>}
@@ -86,36 +87,9 @@ export function AdvancedAnalysisView({ match, points, nameA, nameB, back }: {
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '-');
 const share = (n: number, d: number) => `${n} (${pct(n, d)})`;
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
-const tone = (n: number) => (n > 0 ? 'stat-good' : n < 0 ? 'stat-bad' : 'stat-even');
-const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-/** At most one choice; tapping the selected chip clears it (none selected = all). */
-function OptionalChips<T extends string | number>({ label, options, value, onChange }: {
-  label: string; options: { value: T; label: string }[]; value: T[]; onChange: (v: T[]) => void;
-}) {
-  return (
-    <div className="chips" role="group" aria-label={label}>
-      {options.map((o) => {
-        const on = value.includes(o.value);
-        return (
-          <button key={o.value} type="button" className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
-            onClick={() => onChange(on ? [] : [o.value])}>
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-const LOCATION_ROWS: { value: ServeLocation; label: string }[] = [...SERVE_LOCATIONS, { value: 'none', label: 'Not recorded' }];
-const TYPE_COLUMNS: { value: ServeType; label: string }[] = [...SERVE_TYPES, { value: 'none', label: 'Type not recorded' }];
-const KEY_POINTS: { value: KeyPoint; label: string }[] = [
-  { value: 'first', label: 'First point' },
-  { value: 'game', label: 'Game points' },
-  { value: 'break', label: 'Break points' },
-  { value: 'tiebreak', label: 'Tiebreak' },
-];
+const LOCATION_ROWS = SERVE_LOCATIONS;
+const TYPE_COLUMNS = SERVE_TYPES;
 
 export function ServeStatistics({ match, ctxs, nameA, nameB }: { match: Match; ctxs: PointContext[]; nameA: string; nameB: string }) {
   const [server, setServer] = useState<Side>('A');
@@ -123,18 +97,15 @@ export function ServeStatistics({ match, ctxs, nameA, nameB }: { match: Match; c
   const [sides, setSides] = useState<ServeFilters['sides']>([]);
   const [attempts, setAttempts] = useState<number[]>([]);
   const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([]);
-  const [locations, setLocations] = useState<ServeLocation[]>([]);
+  const [locations, setLocations] = useState<ServeSpot[]>([]);
   const f: ServeFilters = { server, sets, sides, attempts, keyPoints, locations };
 
   const dist = serveDistribution(ctxs, f);
-  const typeTotal = (t: ServeType) => LOCATION_ROWS.reduce((n, l) => n + dist[l.value][t], 0);
-  const locationTotal = (l: ServeLocation) => TYPE_COLUMNS.reduce((n, t) => n + dist[l][t.value], 0);
+  const typeTotal = (t: ServeKind) => LOCATION_ROWS.reduce((n, l) => n + dist[l.value][t], 0);
+  const locationTotal = (l: ServeSpot) => TYPE_COLUMNS.reduce((n, t) => n + dist[l][t.value], 0);
   const attemptsTotal = LOCATION_ROWS.reduce((n, l) => n + locationTotal(l.value), 0);
 
   const perf = servePerformance(ctxs, f);
-  const perfColumns: (ServeType | 'all')[] = ['all', ...TYPE_COLUMNS.map((t) => t.value)];
-  const perfRow = (label: string, className: string, key: keyof ServePerformance): ReactNode[] =>
-    [<span className={className}>{label}</span>, ...perfColumns.map((c) => share(perf[c][key], perf[c].points))];
 
   const impact = serveImpactStats(ctxs, f);
   const n = perf.all.points;
@@ -169,35 +140,13 @@ export function ServeStatistics({ match, ctxs, nameA, nameB }: { match: Match; c
         [<strong>Serves</strong>, attemptsTotal, ...TYPE_COLUMNS.map((t) => typeTotal(t.value))],
       ]}
     />
-    <p className="muted small">Serve attempts including faults; % = share of each column.</p>
+    <p className="muted small">Serve attempts including faults; % = share of each column. Unrecorded location counts as Body, unrecorded type as Flat.</p>
 
     <OptionalChips label="Serve location" options={SERVE_LOCATIONS} value={locations} onChange={setLocations} />
     <p className="muted small">Location filter applies to the performance and impact tables.</p>
 
     <h3>Serve performance</h3>
-    <Table
-      head={['', 'Total', ...TYPE_COLUMNS.map((t) => t.label)]}
-      rows={[
-        [<strong>Service points</strong>, ...perfColumns.map((c) => perf[c].points)],
-        perfRow('Serve winners', 'stat-good', 'serveWinners'),
-        perfRow('Serve + 1', 'stat-good', 'servePlusOne'),
-        perfRow('Win due to serve', 'stat-good', 'wonDueToServe'),
-        perfRow('UE during Serve advantage', 'stat-bad', 'ueInAdvantage'),
-        perfRow('Double faults', 'stat-bad', 'doubleFaults'),
-        perfRow('Lost due to serve', 'stat-bad', 'lostDueToServe'),
-        ['Serve score', ...perfColumns.map((c) => {
-          const score = perf[c].wonDueToServe - perf[c].lostDueToServe;
-          const per100 = perf[c].points ? `${signed(Math.round((score / perf[c].points) * 1000) / 10)} / 100` : '-';
-          return <span className={tone(score)}>{signed(score)} ({per100})</span>;
-        })],
-      ]}
-    />
-    <p className="muted small">
-      Points count under their last serve (2nd serve includes double faults); type columns use that serve's type. % = share of the
-      column's service points. Rows overlap and must not be added up. Win due to serve = ace, return error, Serve + 1, or server
-      winner / receiver UE in a Serve advantage point. Lost due to serve = double fault, return ace, or receiver winner / server UE in
-      a Return advantage point. Serve score = Win - Lost due to serve, also per 100 service points.
-    </p>
+    <ServePerformanceTable perf={perf} />
 
     <h3>Serve impact</h3>
     <Table
@@ -240,7 +189,7 @@ export function ServeStatistics({ match, ctxs, nameA, nameB }: { match: Match; c
     <p className="muted small">
       Service games held: completed regular service games (Set filter only). Break points saved: Set and Court side filters.
       Location repeats: serves at the same location as the previous serve on the same side with the same serve number, within the
-      selected set or through the whole match (Set, Court side and Serve attempt filters); Not recorded breaks the chain.
+      selected set or through the whole match (Set, Court side and Serve attempt filters).
     </p>
   </>;
 }

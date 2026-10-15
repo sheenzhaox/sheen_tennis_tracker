@@ -12,7 +12,6 @@ import {
   serveFaults,
   serveImpact,
   serveImpactStats,
-  serveLocationStats,
   servePerformance,
   serviceGamesHeld,
   setOptions,
@@ -89,17 +88,6 @@ describe('match stats', () => {
     expect(s.A.pointsWon).toBe(4);
     expect(s.A.firstServe).toEqual({ served: 5, in: 3, won: 2 });
     expect(s.A.secondServe).toEqual({ served: 2, won: 1 });
-  });
-
-  it('serve location with side and situation filters', () => {
-    const all = serveLocationStats(ctxs, 'A', 'all', 'all');
-    expect(all.t.first).toEqual({ count: 2, in: 2, won: 2 });
-    expect(all.body.second).toEqual({ count: 2, in: 1, won: 1 });
-    const deuce = serveLocationStats(ctxs, 'A', 'deuce', 'all');
-    expect(deuce.t.first.count).toBe(1);
-    const first = serveLocationStats(ctxs, 'A', 'all', 'first');
-    expect(first.t.first.count).toBe(1);
-    expect(first.wide.first.count).toBe(0);
   });
 
   it('forehand / backhand by game type', () => {
@@ -285,10 +273,9 @@ describe('match stats', () => {
             for (const games of ['all', 'serve', 'return'] as const) {
               expect(strokeStats(contexts, player, games)).toEqual(strokeStats([], player, games));
             }
-            for (const side of ['all', 'deuce', 'ad'] as const) {
-              for (const situation of ['all', 'first', 'game', 'break'] as const) {
-                expect(serveLocationStats(contexts, player, side, situation)).toEqual(serveLocationStats([], player, side, situation));
-              }
+            for (const sides of [[], ['deuce'], ['ad']] as ServeFilters['sides'][]) {
+              const f: ServeFilters = { server: player, sets: [], sides, attempts: [], keyPoints: [], locations: [] };
+              expect(servePerformance(contexts, f)).toEqual(servePerformance([], f));
             }
           }
           expect(shotTypeStats(contexts)).toEqual(shotTypeStats([]));
@@ -310,8 +297,9 @@ describe('match stats', () => {
     const expected = summary(contexts.slice(1));
     expected.A.winners.total++;
     expect(summary(contexts)).toEqual(expected);
-    expect(serveLocationStats(contexts, 'A', 'ad', 'all').body.first).toEqual({ count: 1, in: 1, won: 0 });
-    expect(serveLocationStats(contexts, 'A', 'all', 'all')).toEqual(serveLocationStats(contexts.slice(1), 'A', 'all', 'all'));
+    const f: ServeFilters = { server: 'A', sets: [], sides: [], attempts: [], keyPoints: [], locations: [] };
+    expect(servePerformance(contexts, { ...f, sides: ['ad'], locations: ['body'] }).all.points).toBe(1);
+    expect(servePerformance(contexts, f)).toEqual(servePerformance(contexts.slice(1), f));
     expect(strokeStats(contexts, 'B', 'all')).toEqual(strokeStats(contexts.slice(1), 'B', 'all'));
   });
 
@@ -352,12 +340,13 @@ describe('advanced serve statistics', () => {
   const ctxs = pointContexts(match, points);
 
   it('distributes serve attempts, faults included, by location and type', () => {
+    // Unrecorded locations count as Body and unrecorded types as Flat.
     const d = serveDistribution(ctxs, all);
-    expect([d.t.none, d.wide.none, d.body.none, d.none.none]).toEqual([2, 2, 2, 1]);
+    expect([d.t.flat, d.wide.flat, d.body.flat, d.body.slice]).toEqual([2, 2, 3, 0]);
     const first = serveDistribution(ctxs, { ...all, attempts: [1] });
-    expect([first.t.none, first.wide.none, first.body.none, first.none.none]).toEqual([2, 2, 0, 1]);
-    expect(serveDistribution(ctxs, { ...all, locations: ['t'] }).wide.none).toBe(2);
-    expect(serveDistribution(ctxs, { ...all, server: 'B' }).t.none).toBe(0);
+    expect([first.t.flat, first.wide.flat, first.body.flat]).toEqual([2, 2, 1]);
+    expect(serveDistribution(ctxs, { ...all, locations: ['t'] }).wide.flat).toBe(2);
+    expect(serveDistribution(ctxs, { ...all, server: 'B' }).t.flat).toBe(0);
   });
 
   it('attributes service points to their last serve for performance and impact', () => {
@@ -369,7 +358,7 @@ describe('advanced serve statistics', () => {
     expect(servePerformance(ctxs, { ...all, locations: ['t'] }).all).toMatchObject({ points: 2, wonDueToServe: 2 });
     expect(servePerformance(ctxs, { ...all, keyPoints: ['first'] }).all.points).toBe(1);
     expect(servePerformance(ctxs, { ...all, sides: ['ad'] }).all.points).toBe(2);
-    expect(servePerformance(ctxs, all).none.points).toBe(5);
+    expect(servePerformance(ctxs, all).flat.points).toBe(5);
     const impact = serveImpactStats(ctxs, all);
     expect(impact.ace).toEqual({ points: 1, won: 1 });
     expect(impact.double_fault).toEqual({ points: 1, won: 0 });
@@ -394,7 +383,7 @@ describe('advanced serve statistics', () => {
 
   it('breaks faults down by location and fault type', () => {
     const faults = serveFaults(ctxs, all);
-    expect([faults.wide.long, faults.body.net, faults.none.none, faults.t.net]).toEqual([1, 1, 1, 0]);
+    expect([faults.wide.long, faults.body.net, faults.body.none, faults.t.net]).toEqual([1, 1, 1, 0]);
     expect(serveFaults(ctxs, { ...all, attempts: [2] }).body.net).toBe(1);
     expect(serveFaults(ctxs, { ...all, attempts: [2] }).wide.long).toBe(0);
   });
@@ -410,8 +399,8 @@ describe('advanced serve statistics', () => {
     expect(serviceGamesHeld(match, pointContexts(match, points.slice(0, 5)), all)).toEqual({ held: 0, played: 0 });
     expect(breakPointsSaved(c, { ...all, server: 'B' })).toEqual({ saved: 1, faced: 2 });
     expect(breakPointsSaved(c, { ...all, server: 'B', sides: ['deuce'] })).toEqual({ saved: 0, faced: 1 });
-    // Deuce 1st: T -> Wide, then Not recorded breaks the chain; Ad 1st: Wide -> T -> T.
-    expect(locationRepeats(c, all)).toEqual({ repeats: 1, compared: 3 });
+    // Deuce 1st: T -> Wide -> Body (unrecorded) -> Wide; Ad 1st: Wide -> T -> T.
+    expect(locationRepeats(c, all)).toEqual({ repeats: 1, compared: 5 });
     expect(locationRepeats(c, { ...all, sides: ['ad'] })).toEqual({ repeats: 1, compared: 2 });
     expect(locationRepeats(c, { ...all, attempts: [2] })).toEqual({ repeats: 0, compared: 0 });
   });

@@ -32,7 +32,7 @@ Whenever either recording page gains, changes, or removes a factor, update the f
 
 Sections appear in this order:
 
-1. Match Information: player names, date, location, event, round, surface, format, recorded first server/recorder/notes, and manual finalisation when present. Existing date formatting uses the match day, falling back to start/create timestamps; unavailable fields are not inferred.
+1. Match Information: player names, date, location, event, round, surface, format, recorded first server/recorder/notes, and manual finalisation when present. Existing date formatting uses the match day, falling back to start/create timestamps; unavailable fields are not inferred. **Revised 2026-10-15 (user; implemented, not deployed):** a field that is not recorded is hidden instead of showing "Not recorded".
 2. General Statistics: the existing Summary table and its independent set selection come first.
 3. Serve Statistics.
 4. Return Statistics.
@@ -40,7 +40,7 @@ Sections appear in this order:
 6. Unforced Error Statistics.
 7. Other Key Factors Statistics.
 
-Sections 3-7 contain headings only. No new metrics, phase calculations, charts, or detailed tables are implemented. Future topic sections follow their respective design documents; Other Key Factors remains undesigned. The normal stats page retains all its existing sections.
+Sections 3-7 contain headings only. No new metrics, phase calculations, charts, or detailed tables are implemented. Future topic sections follow their respective design documents; Other Key Factors remains undesigned. The normal stats page retains all its existing sections. **Revised 2026-10-15:** normal stats replaced its Serve location section with the Serve performance table; see [serve.md](serve.md#normal-stats-serve-performance).
 
 **Updated 2026-10-15 (implemented and deployed):** Serve Statistics now has its own filters and five tables (Location distribution, Serve performance, Serve impact, Faults, Serving summary); see [serve.md](serve.md#implementation-and-validation). Sections 4-7 remain heading-only.
 
@@ -327,6 +327,8 @@ The Serve winner filter is broader than shot-winner attribution: a return error 
 
 ## Decision Record
 
+- **2026-10-15 - Normal stats Serve performance (user; implemented, not deployed):** the normal stats Serve location section (and `serveLocationStats`) is removed; normal, shared and player stats show the Advanced Analysis Serve performance table with Set, Player, Court side, Serve attempt, Key points and Serve location filters. See [serve.md](serve.md#normal-stats-serve-performance).
+- **2026-10-15 - Unrecorded serve defaults and hidden match fields (user; implemented, not deployed):** Advanced Analysis Serve Statistics counts an unrecorded serve location as Body and an unrecorded serve type as Flat (no Not recorded row/column; Location repeats continue through them). Match Information hides fields that were not recorded. Saved data, recording and normal stats are unchanged. See [serve.md](serve.md#unrecorded-location-and-type-defaults).
 - **2026-10-15 - Serve Statistics section implemented (deployed 2026-10-15, version `c66bdd25`):** Advanced Analysis Serve Statistics built from the agreed plan, with a Tiebreak key-point option and Direct ending split in the impact table. Fault breakdown uses the Serve attempt filter instead of attempt columns. Validated by unit and render tests; see [serve.md](serve.md#implementation-and-validation).
 - **2026-10-15 - Serve Statistics section plan agreed:** user answered the open questions (court side none = both; Win / Lost due to serve include the UEs, matching Serve advantage / disadvantage; last-attempt attribution; column-share %; Key points filter kept; Outcome filter replaced by a Serve impact table; Serve score also per 100; one match first) and selected seven extra metrics. Details in [serve.md](serve.md#serve-statistics-section-plan). Not implemented.
 - **2026-10-15 - Serve Statistics section plan proposed:** user proposed the Serve location distribution and Serve performance tables; open questions and suggested extra metrics recorded in [serve.md](serve.md#serve-statistics-section-plan). Not agreed; no code.
