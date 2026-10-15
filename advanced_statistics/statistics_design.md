@@ -323,6 +323,7 @@ The Serve winner filter is broader than shot-winner attribution: a return error 
 
 ## Decision Record
 
+- **2026-10-15 - Serve Impact State and Serve / Return advantage statistics deployed:** release `421903e`, production version `6506990f-c60c-437a-b383-503c9a8a4ab2`. Live bundle matches the local build; no migration needed.
 - **2026-10-15 - Return advantage statistic agreed:** Return advantage = return ace, or receiver winner / server UE in a Return advantage point; double faults excluded. Implemented in the Return games row (Forehand / Backhand from receiver shots only). Replaces the winners-only row.
 - **2026-10-15 - Serve Impact State button relabelled and reordered (user request):** `serve_disadvantage` is shown as **Return advantage**; order is Serve + 1 / Neutralised, then Serve advantage / Return advantage. Stored values, legacy mapping and all statistic definitions are unchanged; the service-game statistic keeps the name Serve disadvantage.
 - **2026-10-15 - Serve disadvantage statistic agreed:** Serve disadvantage = double fault, return ace, or receiver winner / server UE in a Serve disadvantage point. Implemented in the Service games row (Forehand / Backhand from receiver shots only). The serve-location Serve advantage / disadvantage outcome filters adopt both statistics. Return advantage then unchanged (resolved later the same day). Tests and build pass.
