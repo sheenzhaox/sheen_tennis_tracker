@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DEFAULT_RULES } from '../../model/rules';
-import type { Match, Point, ShotType } from '../../model/types';
+import type { Match, Point, RallyEnding, ShotType } from '../../model/types';
 import RallyEntry from '../components/RallyEntry';
 import OptionRow from '../components/OptionRow';
 import { StatsView } from './StatsPage';
@@ -41,8 +41,9 @@ describe('rally shot options and stats', () => {
     // Lucky ball and manual points are excluded: 2 service points (Serve + 1 rally and double fault).
     expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
     expect(tables[3]).toContain('<th><strong>Serve in control</strong></th><td>1</td><td>50%</td><td>1</td><td>100%</td>');
-    expect(tables[3]).toContain('<th><strong>Return in control</strong></th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
-    expect(tables[3]).toContain('<th>- Double fault</th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
+    const lost = (cell: string | number) => `<span class="stat-lost">${cell}</span>`;
+    expect(tables[3]).toContain(`<th>${lost('<strong>Return in control</strong>')}</th><td>${lost(1)}</td><td>${lost('50%')}</td><td>${lost(0)}</td><td>${lost('0%')}</td>`);
+    expect(tables[3]).toContain(`<th>${lost('- Double fault')}</th><td>${lost(1)}</td><td>${lost('50%')}</td><td>${lost('')}</td><td>${lost('')}</td>`);
     expect(tables[3]).not.toContain('advantage');
     expect(advanced).toContain('>Set 1</button>');
     // Each part has its own selectors defaulting to "All *"; a single set needs no "All sets".
@@ -71,6 +72,19 @@ describe('rally shot options and stats', () => {
     expect(advanced.match(/aria-pressed="true">All sets</g)).toHaveLength(5);
     expect(advanced.match(/aria-pressed="false">Set 2</g)).toHaveLength(5);
     expect(advanced).toContain('<th>Service games won</th><td>6/6 (100%)</td><td>-</td>');
+  });
+
+  it('shows the server save rate for Return in control and the lost rate for its rallies', () => {
+    const rally = point('drive_volley');
+    const inControl = (seq: number, ending: RallyEnding,
+      winner: 'A' | 'B'): Point => ({ ...rally, id: `r${seq}`, seq, winner, rally: { ...rally.rally!, ending, impact: 'serve_disadvantage' } });
+    const points = [inControl(0, 'returner_winner', 'B'), inControl(1, 'server_error', 'B'), inControl(2, 'server_winner', 'A')];
+    const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
+      points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
+    const lost = (cell: string | number) => `<span class="stat-lost">${cell}</span>`;
+    const cells = (...values: (string | number)[]) => values.map((v) => `<td>${lost(v)}</td>`).join('');
+    expect(advanced).toContain(`<th>${lost('<strong>Return in control</strong>')}</th>${cells(3, '100%', 1, '33.3%')}`);
+    expect(advanced).toContain(`<th>${lost('- Lost return in control rally')}</th>${cells(3, '100%', 2, '66.7%')}`);
   });
 
   it.each([false, true])('offers optional incoming controls after shot position (busy=%s)', (busy) => {

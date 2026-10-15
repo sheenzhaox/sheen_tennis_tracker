@@ -49,6 +49,10 @@ h2 {
   margin: 0;
 }
 
+.stat-lost {
+  color: var(--danger);
+}
+
 /* Header */
 .header {
   position: sticky;

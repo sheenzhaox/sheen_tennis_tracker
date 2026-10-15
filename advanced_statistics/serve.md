@@ -126,12 +126,16 @@ Replaces the 2026-10-14 Outcome filter (user decision): instead of filtering the
 | - Return error | | | | 100% |
 | - Serve + 1 | | Serve + 1 rate | | 100% |
 | - Serve in control rally (`serve_advantage`) | | | | Advantage conversion % |
-| **Return in control** (group) | $R$ | Return in control rate | | Save rate |
-| - Double fault | | | | 0% |
-| - Return winner | | | | 0% |
-| - Return in control rally (`serve_disadvantage`) | | | | |
+| **Return in control** (group, red: Double fault + Return winner + all Return in control rallies) | $R$ | Return in control rate | Won by server | Save rate |
+| - Double fault | | | blank | blank |
+| - Return winner | | | blank | blank |
+| - Lost return in control rally (`serve_disadvantage`) | all Return in control rallies $D$ | | Lost by server $L$ | $L / D$ |
 | **Neutralised** | | Neutralised rate | | Neutralised winning rate |
 | State not recorded | | | | |
+
+**Display revision 2026-10-15 (user; implemented, not deployed):** the Return in control group and its sub-rows use red font (`.stat-lost`); Won / Won % are blank for Double fault and Return winner (always 0).
+
+**Second revision the same day (user; implemented, not deployed):** the interim group label "Return in control (lost point)" is reverted to **Return in control** (it includes double faults, return winners and every Return in control rally point, won or lost). The rally sub-row (interim label "Lost while return in control", originally "Return in control rally") is now **Lost return in control rally**; its Points stay all Return in control rallies $D$, but its Won column shows $L$ = receiver winners + server unforced errors in those rallies and Won % = $L / D$ (the server's lost rate, $1 -$ rally save rate). The group's Won / Won % remain server wins / save rate, so the sub-row's Won does not add up to the group's Won.
 
 - Groups, Neutralised and State not recorded are mutually exclusive and sum to $N$; sub-rows sum to their group and must not be added again. Won = server wins (server winner or receiver UE in rallies; aces and return errors always won; double faults and return winners never).
 - Serve in control Won = Win due to serve (Table 2); Return in control Points - Won = Lost due to serve (Table 2).
@@ -368,6 +372,8 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Lost return in control rally (user):** group label back to "Return in control"; rally sub-row renamed "Lost return in control rally" with Won = receiver winners + server UEs and Won % = that / all Return in control rallies. Implemented; render test in [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx); 222 tests and build pass; not deployed.
+- **2026-10-15 - Return in control display (user):** Serve impact Return in control rows in red, group renamed "Return in control (lost point)", Won / Won % blank for Double fault and Return winner, rally sub-row renamed "Lost while return in control"; counts unchanged. Implemented; 221 tests and build pass; not deployed. Labels revised by the entry above.
 - **2026-10-15 - Serve quality merged into Serve impact (user, option (a)):** separate Serve quality part removed; Serve impact regrouped into Serve in control / Return in control / Neutralised / State not recorded with sub-rows, and its Serve advantage / Return advantage rows relabelled "in control". One total (Lucky balls excluded) for all serve tables, revising the Serve quality Lucky-ball total. Implemented; 221 tests and build pass; deployed 2026-10-15 (commit `7f8ec38`, version `7654b3bb`).
 - **2026-10-15 - Serve quality (user):** new Serve quality part after Serve performance with the same selectors: total (Lucky balls only here), Serve in control count / rate / conversion, Serve + 1 rate, Return in control count / rate / save rate, Neutralised rate / winning rate. See [Table 2b](#table-2b-serve-quality-user-design-2026-10-15-superseded-the-same-day-merged-into-table-3). Implemented; 222 tests and build pass; never deployed. Superseded the same day (merged into Serve impact; see above).
 - **2026-10-15 - Per-part serve filters with All options (user):** the general Serve Statistics filter row is replaced by selectors inside each part; Set, Court side, Serve attempt, Key points (and Serve location) are exactly-one selectors with an "All ..." default instead of one-or-none; no All sets when the match has one set. Supersedes the one-or-none decision for Advanced Analysis only (normal stats unchanged). Code: `useServeFilters` / `PickChips` and part components in [AdvancedAnalysisPage.tsx](../src/ui/pages/AdvancedAnalysisPage.tsx); render tests in [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx). Implemented; 221 tests and build pass; deployed 2026-10-15 (commit `7f8ec38`, version `7654b3bb`).

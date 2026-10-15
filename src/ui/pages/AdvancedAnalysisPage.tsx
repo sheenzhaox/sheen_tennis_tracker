@@ -190,6 +190,9 @@ function ServeImpactPart({ ctxs, nameA, nameB }: PartProps) {
   const n = Object.values(impact).reduce((sum, r) => sum + r.points, 0);
   const impactRow = (label: ReactNode, { points, won }: { points: number; won: number }): ReactNode[] =>
     [label, points, pct(points, n), won, pct(won, points)];
+  // Double faults and return winners are always lost, so Won is left blank.
+  const lostRow = (label: ReactNode, r: { points: number; won: number }, showWon = true): ReactNode[] =>
+    impactRow(label, r).map((cell, i) => <span className="stat-lost">{showWon || i < 3 ? cell : ''}</span>);
   const group = (rows: ImpactRow[]) =>
     rows.reduce((sum, r) => ({ points: sum.points + impact[r].points, won: sum.won + impact[r].won }), { points: 0, won: 0 });
   return <>
@@ -203,17 +206,21 @@ function ServeImpactPart({ ctxs, nameA, nameB }: PartProps) {
         impactRow('- Return error', impact.return_error),
         impactRow('- Serve + 1', impact.serve_plus_one),
         impactRow('- Serve in control rally', impact.serve_advantage),
-        impactRow(<strong>Return in control</strong>, group(['double_fault', 'return_winner', 'serve_disadvantage'])),
-        impactRow('- Double fault', impact.double_fault),
-        impactRow('- Return winner', impact.return_winner),
-        impactRow('- Return in control rally', impact.serve_disadvantage),
+        lostRow(<strong>Return in control</strong>, group(['double_fault', 'return_winner', 'serve_disadvantage'])),
+        lostRow('- Double fault', impact.double_fault, false),
+        lostRow('- Return winner', impact.return_winner, false),
+        // Won here is the returner's: receiver winners + server UEs.
+        lostRow('- Lost return in control rally',
+          { points: impact.serve_disadvantage.points, won: impact.serve_disadvantage.points - impact.serve_disadvantage.won }),
         impactRow(<strong>Neutralised</strong>, impact.neutralised),
         impactRow('State not recorded', impact.unknown),
       ]}
     />
     <p className="muted small">
       Each service point appears once; sub-rows add up to their group. % = share of service points (Lucky balls excluded). Won % =
-      conversion for Serve in control, save rate for Return in control and winning rate for Neutralised. Older rally counts map
+      conversion for Serve in control, save rate for Return in control and winning rate for Neutralised. Double faults and
+      return winners are always lost, so Won is blank; for Lost return in control rally, Won counts receiver winners and
+      server unforced errors (points lost by the server). Older rally counts map
       to a state; rallies without either are State not recorded.
     </p>
   </>;
