@@ -8,12 +8,14 @@ import { db, isLive, pointsForMatch } from '../../storage/db';
 import { useAllPlayers, usePlayerNames } from '../hooks';
 import { canShareStats, useUser } from '../user';
 import {
+  breakPointsSaved,
   errorDirectionStats,
   filterSets,
   isLuckyBall,
   pointContexts,
   rallyWinnerStats,
   servePerformance,
+  serviceGamesHeld,
   setOptions,
   shotTypeStats,
   strokeStats,
@@ -28,7 +30,7 @@ import {
   type StrokeFilter,
   type PointContext,
 } from '../../stats/matchStats';
-import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SERVE_TYPES, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
+import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SERVE_TYPES, SHOT_DIRECTIONS, SHOT_POSITIONS, type Match, type PublicStats, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
@@ -164,13 +166,15 @@ function SetChips({ options, value, onChange }: { options: SetOption[]; value: n
   );
 }
 
-export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showSets = true }: {
-  contexts: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; showSets?: boolean;
+/** With `match`, adds Service games won and Break points saved rows (Advanced Analysis only). */
+export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showSets = true, match }: {
+  contexts: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; showSets?: boolean; match?: Match;
 }) {
   const [sets, setSets] = useState<number[]>([]);
   const sum = summary(filterSets(contexts, sets));
   const players: Side[] = playerOnly ? ['A'] : ['A', 'B'];
   const both = (value: (side: Side) => ReactNode) => players.map(value);
+  const serving = (server: Side) => ({ server, sets, sides: [], attempts: [], keyPoints: [], locations: [] });
   return <>
     {showSets && <SetChips options={setOptions(contexts)} value={sets} onChange={setSets} />}
     <Table head={['', ...players.map((side) => side === 'A' ? nameA : nameB)]} rows={[
@@ -186,6 +190,16 @@ export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showS
       ['1st serve in', ...both((side) => ratio(sum[side].firstServe.in, sum[side].firstServe.served))],
       ['1st serve pts won', ...both((side) => ratio(sum[side].firstServe.won, sum[side].firstServe.in))],
       ['2nd serve pts won', ...both((side) => ratio(sum[side].secondServe.won, sum[side].secondServe.served))],
+      ...(match ? [
+        ['Service games won', ...both((side) => {
+          const { held, played } = serviceGamesHeld(match, contexts, serving(side));
+          return ratio(held, played);
+        })],
+        ['Break points saved', ...both((side) => {
+          const { saved, faced } = breakPointsSaved(contexts, serving(side));
+          return ratio(saved, faced);
+        })],
+      ] : []),
     ]} />
   </>;
 }

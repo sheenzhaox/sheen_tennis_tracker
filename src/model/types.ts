@@ -156,12 +156,13 @@ export type IncomingBall = 'slow' | 'fast' | 'heavy' | 'slice' | 'short' | 'deep
 export type IncomingDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'short_angle' | 'dropshot' | 'none';
 export type ServeImpact = 'serve_plus_one' | 'serve_advantage' | 'serve_disadvantage' | 'neutralised' | 'none';
 
-// Display order fills the two-column grid: Serve + 1 / Neutralised, then Serve advantage / Return advantage.
+// Display order fills the two-column grid: Serve + 1 / Neutralised, then Serve in control / Return in control.
+// Recording labels only; stats keep the Serve advantage / Return advantage names.
 export const SERVE_IMPACTS: { value: Exclude<ServeImpact, 'none'>; label: string }[] = [
   { value: 'serve_plus_one', label: 'Serve + 1' },
   { value: 'neutralised', label: 'Neutralised' },
-  { value: 'serve_advantage', label: 'Serve advantage' },
-  { value: 'serve_disadvantage', label: 'Return advantage' },
+  { value: 'serve_advantage', label: 'Serve in control' },
+  { value: 'serve_disadvantage', label: 'Return in control' },
 ];
 
 export const INCOMING_BALLS: { value: IncomingBall; label: string }[] = [

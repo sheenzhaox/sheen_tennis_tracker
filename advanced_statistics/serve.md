@@ -42,6 +42,19 @@ Record ideas and definitions for analysing serve performance from recorded match
 
 Different filters combine with AND. **Revised 2026-10-15 (user):** no filter allows multiple choices; tapping the selected choice clears it. This supersedes the earlier multi-select Set and Key points decisions.
 
+**Revised again 2026-10-15 (user; implemented, not deployed):** there is no general filter row at the top of Serve Statistics. Each part (Location distribution, Serve performance, Serve impact, Faults, Serving summary) has its own selectors under its heading, with independent state. Instead of "one or none", every selector always has exactly one choice selected and offers an explicit "All" option, which is the default:
+
+| Selector | Options (default first) | Parts |
+| --- | --- | --- |
+| Player | Player 1 / Player 2 (default Player 1) | All parts |
+| Set | All sets / Set 1 / Set 2 / ... / MTB; with only one set the single set chip is shown selected and no All sets | All parts |
+| Court side | All sides / Deuce / Ad | All parts |
+| Serve attempt | All serves / 1st serve / 2nd serve | All parts |
+| Key points | All points / First point / Game points / Break points / Tiebreak | Location distribution, Serve performance, Serve quality, Serve impact, Faults |
+| Serve location | All locations / Wide / Body / T | Serve performance, Serve quality, Serve impact |
+
+"All" means the filter is not applied (same calculation as an empty selection). The Serve location "All locations" option was added for consistency, beyond the request's set / side / serve / point list. Serving summary keeps its row-specific rules: Service games held uses Player and Set only; Break points saved uses Player, Set and Court side; Location repeats uses Player, Set, Court side and Serve attempt. The normal stats page filters are unchanged.
+
 #### Table 1: Serve Location Distribution (agreed)
 
 - Rows: serve location Wide, Body, T. ~~Not recorded~~ row removed 2026-10-15: an unrecorded location counts as Body (see [Unrecorded Location and Type Defaults](#unrecorded-location-and-type-defaults)).
@@ -68,10 +81,64 @@ Each row shows count and % of the filtered service points $N$, with $N$ shown; S
 
 Example: $N = 40$, Win due to serve 14, Lost due to serve 9 gives Serve score +5 (green), +12.5 per 100 service points.
 
-#### Table 3: Serve Impact (agreed)
+#### Table 2b: Serve Quality (user design 2026-10-15; superseded the same day, merged into Table 3)
+
+**Superseded 2026-10-15 (user chose option (a) of the overlap review below):** the separate Serve quality part and `serveQuality` were removed; its rates now come from the Serve in control / Return in control / Neutralised group rows of [Table 3](#table-3-serve-impact-agreed-regrouped-2026-10-15). Mapping: Serve in control rate and Return in control rate = the group's % of $N$; conversion and save rate = the group's Won %; Serve + 1 rate = the Serve + 1 sub-row's %; Neutralised rate and winning rate = the Neutralised row. **Revision:** the original design counted Lucky balls in its total; the merged table keeps Table 2's denominator $N$ (Lucky balls excluded) so all serve tables share one total. The original design is kept below for reference.
+
+Original design (no longer displayed): shown after Serve performance with its own selectors (same set as Serve performance: Player, Set, Court side, Serve attempt, Key points, Serve location) and the same last-attempt attribution. Unlike Table 2, the total includes Lucky ball points; a Lucky ball counts **only** in the total (no state, no won count). Unrecorded/manual points are excluded. "In control" names follow the renamed recording buttons (Serve in control = `serve_advantage`, Return in control = `serve_disadvantage`).
+
+| Row | Formula | Denominator |
+| --- | --- | --- |
+| Total serve points | $T$ = service points under the current selectors, Lucky balls included | - |
+| Serve in control | $C$ = ace + return error + Serve + 1 + Serve in control rallies (whoever won) | - |
+| Serve in control rate | $C / T$ | $T$ |
+| Serve in control conversion rate | (ace + return error + Serve + 1 + server winners / receiver UEs in Serve in control) / $C$ | $C$ |
+| Serve + 1 rate | Serve + 1 / $T$ | $T$ |
+| Return in control | $R$ = double fault + return ace + Return in control rallies (whoever won) | - |
+| Return in control rate | $R / T$ | $T$ |
+| Return in control save rate | (server winners + receiver UEs in Return in control) / $R$ | $R$ |
+| Neutralised rate | Neutralised / $T$ | $T$ |
+| Neutralised winning rate | (server winners + receiver UEs in Neutralised) / Neutralised | Neutralised |
+
+- Rates display n/d (%) with one decimal when needed, `-` for a zero denominator.
+- Rally points with no known state (no recorded state and no mappable legacy count) count only in $T$, so $C + R +$ Neutralised can be below $T$.
+- Conversion numerator equals Win due to serve (Table 2); the save-rate complement within $R$ excludes double faults and return aces, which can never be saved.
+- Legacy rally counts use the existing Serve Impact State mapping.
+- Code (removed 2026-10-15): `serveQuality`, `ServeQualityPart` and its unit test.
+
+**Overlap review (2026-10-15; option (a) chosen by the user the same day).** With $N$ = Table 2 service points (Lucky balls excluded) and $C$, $R$, $T$ as above:
+
+- vs Table 2 (Serve performance), moderate overlap: Serve + 1 rate duplicates the Serve + 1 % (only the denominator differs by Lucky balls); the conversion numerator is exactly Win due to serve; Lost due to serve = $R$ - saved, so save rate = 1 - Lost due to serve / $R$; UE during Serve advantage is part of $C$ - Win due to serve. Table 2 alone has the serve-type columns, Serve winners, Double faults and Serve score.
+- vs Table 3 (Serve impact), high overlap: every Serve quality row is a regrouping of Table 3 rows. $C$ = Ace + Return error + Serve + 1 + Serve advantage points and its conversion = their Won / $C$; $R$ = Double fault + Return winner + Return advantage points and save rate = Return advantage Won / $R$; Neutralised rate and winning rate equal Table 3's Neutralised % and Won %. Only the Lucky-ball total and the subtotals are new.
+- Inconsistency: adjacent tables use different totals under the same selectors ($T$ includes Lucky balls, $N$ does not), and Table 3 still uses the old Serve advantage / Return advantage labels.
+- Proposed options: (a) fold Serve quality into Serve impact as Serve in control / Return in control subtotal rows (Won % = conversion / save) and remove the separate part; or (b) keep Serve quality and remove Serve impact, adding a State not recorded row. In either case drop one of the two Serve + 1 % rows and use one total definition. **Chosen: (a)**, with Table 3 relabelled to "in control"; the duplicate Serve + 1 rate disappears with the Serve quality part (Table 2's Serve + 1 and Table 3's Serve + 1 sub-row remain, as before Serve quality was added).
+
+#### Table 3: Serve Impact (agreed; regrouped 2026-10-15)
 
 Replaces the 2026-10-14 Outcome filter (user decision): instead of filtering the location table by outcome, show how service points split by Serve Impact State. Same filters and attribution as Table 2.
 
+**Regrouped 2026-10-15 (user; implemented, not deployed):** the Direct ending subtotal is replaced by control groups, and Serve advantage / Return advantage are relabelled Serve in control / Return in control (matching the recording buttons). Current layout:
+
+| Row | Points | % of $N$ | Won by server | Won % |
+| --- | --- | --- | --- | --- |
+| **Serve in control** (group) | $C$ | Serve in control rate | | Conversion rate |
+| - Ace | | | | 100% |
+| - Return error | | | | 100% |
+| - Serve + 1 | | Serve + 1 rate | | 100% |
+| - Serve in control rally (`serve_advantage`) | | | | Advantage conversion % |
+| **Return in control** (group) | $R$ | Return in control rate | | Save rate |
+| - Double fault | | | | 0% |
+| - Return winner | | | | 0% |
+| - Return in control rally (`serve_disadvantage`) | | | | |
+| **Neutralised** | | Neutralised rate | | Neutralised winning rate |
+| State not recorded | | | | |
+
+- Groups, Neutralised and State not recorded are mutually exclusive and sum to $N$; sub-rows sum to their group and must not be added again. Won = server wins (server winner or receiver UE in rallies; aces and return errors always won; double faults and return winners never).
+- Serve in control Won = Win due to serve (Table 2); Return in control Points - Won = Lost due to serve (Table 2).
+- The Direct ending subtotal is no longer shown; it equals Ace + Return error + Double fault + Return winner.
+- Code: `ServeImpactPart` in [AdvancedAnalysisPage.tsx](../src/ui/pages/AdvancedAnalysisPage.tsx) groups `serveImpactStats` rows (calculation unchanged). Tests: Advanced render tests in [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx) and [StatsAnalysis.test.tsx](../src/ui/pages/StatsAnalysis.test.tsx); 221 tests and build pass.
+
+Original 2026-10-15 layout (superseded):
 | Row | Points | % of $N$ | Won by server | Won % |
 | --- | --- | --- | --- | --- |
 | Direct ending (subtotal) | | | | |
@@ -300,6 +367,10 @@ The shared rules are agreed, not newly implemented here. Current rally entry doe
 No implementation is introduced by this document. Add source/test references, worked examples, validation results, and interpretation limits as serve statistics are developed. Existing serve statistics still need to be inventoried.
 
 ## Decision History
+
+- **2026-10-15 - Serve quality merged into Serve impact (user, option (a)):** separate Serve quality part removed; Serve impact regrouped into Serve in control / Return in control / Neutralised / State not recorded with sub-rows, and its Serve advantage / Return advantage rows relabelled "in control". One total (Lucky balls excluded) for all serve tables, revising the Serve quality Lucky-ball total. Implemented; 221 tests and build pass; not deployed.
+- **2026-10-15 - Serve quality (user):** new Serve quality part after Serve performance with the same selectors: total (Lucky balls only here), Serve in control count / rate / conversion, Serve + 1 rate, Return in control count / rate / save rate, Neutralised rate / winning rate. See [Table 2b](#table-2b-serve-quality-user-design-2026-10-15-superseded-the-same-day-merged-into-table-3). Implemented; 222 tests and build pass; not deployed. Superseded the same day (merged into Serve impact; see above).
+- **2026-10-15 - Per-part serve filters with All options (user):** the general Serve Statistics filter row is replaced by selectors inside each part; Set, Court side, Serve attempt, Key points (and Serve location) are exactly-one selectors with an "All ..." default instead of one-or-none; no All sets when the match has one set. Supersedes the one-or-none decision for Advanced Analysis only (normal stats unchanged). Code: `useServeFilters` / `PickChips` and part components in [AdvancedAnalysisPage.tsx](../src/ui/pages/AdvancedAnalysisPage.tsx); render tests in [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx). Implemented; 221 tests and build pass; not deployed.
 
 - **2026-10-15 - Normal stats Serve performance (user):** normal-stats Serve location section removed; Serve performance table copied into normal stats (kept in Advanced Analysis) with Set, Player, Court side, Serve attempt, Key points and Serve location filters. Implemented; deployed 2026-10-15 (commit `2c46926`, version `202577ab`).
 - **2026-10-15 - Unrecorded location / type defaults (user):** Serve Statistics counts an unrecorded location as Body and an unrecorded type as Flat; Not recorded location row / type column removed; Location repeats no longer break on unrecorded locations. Supersedes Decision 4's Not recorded display and the 2026-10-14 "missing location remains Not recorded" rule for this section. Implemented; deployed 2026-10-15 (commit `2c46926`, version `202577ab`).

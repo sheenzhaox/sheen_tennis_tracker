@@ -32,12 +32,26 @@ describe('rally shot options and stats', () => {
     const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
       points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
     const tables = advanced.match(/<table.*?<\/table>/g) ?? [];
-    expect(tables[0]).toEqual(normal.match(/<table.*?<\/table>/)?.[0]);
+    // Advanced General Statistics = normal Summary plus Service games won and Break points saved.
+    expect(tables[0]!.startsWith(normal.match(/<table.*?<\/table>/)![0].replace('</tbody></table>', ''))).toBe(true);
+    expect(tables[0]).toContain('<th>Service games won</th><td>-</td><td>-</td>');
+    expect(tables[0]).toContain('<th>Break points saved</th><td>-</td><td>-</td>');
+    expect(normal).not.toContain('Service games won');
     expect(tables).toHaveLength(6);
     // Lucky ball and manual points are excluded: 2 service points (Serve + 1 rally and double fault).
     expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
+    expect(tables[3]).toContain('<th><strong>Serve in control</strong></th><td>1</td><td>50%</td><td>1</td><td>100%</td>');
+    expect(tables[3]).toContain('<th><strong>Return in control</strong></th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
     expect(tables[3]).toContain('<th>- Double fault</th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
+    expect(tables[3]).not.toContain('advantage');
     expect(advanced).toContain('>Set 1</button>');
+    // Each part has its own selectors defaulting to "All *"; a single set needs no "All sets".
+    expect(advanced).not.toContain('All sets');
+    expect(advanced.match(/aria-label="Player"/g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="true">All sides</g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="true">All serves</g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="true">All points</g)).toHaveLength(4);
+    expect(advanced.match(/aria-pressed="true">All locations</g)).toHaveLength(2);
     // Unrecorded match information is hidden; unrecorded serve location/type count as Body/Flat.
     expect(advanced).not.toContain('<dt>Event</dt>');
     expect(advanced).not.toContain('Type not recorded');
@@ -47,6 +61,16 @@ describe('rally shot options and stats', () => {
     expect(normal).toContain('<h2>Serve performance</h2>');
     for (const label of ['Court side', 'Serve attempt', 'Key points', 'Serve location']) expect(normal).toContain(`aria-label="${label}"`);
     expect(normal).toContain('<th><strong>Service points</strong></th><td>2</td>');
+  });
+
+  it('offers All sets by default in each Advanced serve part when the match has several sets', () => {
+    const rally = point('drive_volley');
+    const points = Array.from({ length: 25 }, (_, seq) => ({ ...rally, id: `p${seq}`, seq }));
+    const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
+      points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
+    expect(advanced.match(/aria-pressed="true">All sets</g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="false">Set 2</g)).toHaveLength(5);
+    expect(advanced).toContain('<th>Service games won</th><td>6/6 (100%)</td><td>-</td>');
   });
 
   it.each([false, true])('offers optional incoming controls after shot position (busy=%s)', (busy) => {
