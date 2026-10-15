@@ -1,5 +1,5 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
-import type { Match, Point, Rules, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
+import type { Match, Point, Rules, ServeImpact, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
 import { RECORDED_SHOT_TYPES } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
@@ -187,20 +187,28 @@ export interface WinnerErrorCount {
   errors: number;
 }
 
-/** Total shots in the point: ace / DF = 1, return ace / return error = 2, rally = recorded count. */
-export function rallyLength(p: Point): number | null {
-  switch (p.end) {
-    case 'ace':
-    case 'double_fault':
-      return 1;
-    case 'return_winner':
-    case 'return_error':
-      return 2;
-    case 'rally':
-      return p.rally?.count ?? null;
-    default:
-      return null;
-  }
+export type KnownServeImpact = Exclude<ServeImpact, 'none'>;
+
+/**
+ * Serve Impact State of a rally point: the recorded state, else mapped from a legacy total shot count
+ * (3 + server winner = Serve + 1, 3-6 = by ending-shot player, 7+ = Neutralised). Null when unknown.
+ */
+export function serveImpact(p: Point): KnownServeImpact | null {
+  if (p.end !== 'rally' || !p.rally) return null;
+  const { impact, count, ending } = p.rally;
+  if (impact && impact !== 'none') return impact;
+  if (count == null || count < 3) return null;
+  if (count >= 7) return 'neutralised';
+  if (count === 3 && ending === 'server_winner') return 'serve_plus_one';
+  return ending.startsWith('server') ? 'serve_advantage' : 'serve_disadvantage';
+}
+
+/** Direct serve/return endings are serve-phase; rallies follow their Serve Impact State. */
+export function pointPhase(p: Point): 'serve' | 'neutralised' | null {
+  if (p.end === 'ace' || p.end === 'double_fault' || p.end === 'return_winner' || p.end === 'return_error') return 'serve';
+  const impact = serveImpact(p);
+  if (!impact) return null;
+  return impact === 'neutralised' ? 'neutralised' : 'serve';
 }
 
 function endingStroke(p: Point): 'forehand' | 'backhand' | 'none' | 'serve' {
@@ -221,11 +229,9 @@ interface Ending {
   point: Point;
   by: Side;
   winner: boolean;
-  length: number | null;
+  impact: KnownServeImpact | null;
+  phase: 'serve' | 'neutralised' | null;
 }
-
-const between = (n: number | null, lo: number, hi = Infinity) => n !== null && n >= lo && n <= hi;
-const oneOf = (n: number | null, ...xs: number[]) => n !== null && xs.includes(n);
 
 /** Winners / unforced errors for one player split by forehand and backhand, for all, service or return games. */
 export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilter): StrokeRow[] {
@@ -237,38 +243,45 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
     if (games === 'return' && p.server === player) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
     const by = winnerBy ?? errorBy;
-    if (by) endings.push({ point: p, by, winner: !!winnerBy, length: rallyLength(p) });
+    if (by) endings.push({ point: p, by, winner: !!winnerBy, impact: serveImpact(p), phase: pointPhase(p) });
   }
-  const row = (label: string, match: (e: Ending) => boolean, strokes = true): StrokeRow => {
+  const row = (label: string, match: (e: Ending) => boolean, strokes: boolean | ((e: Ending) => boolean) = true): StrokeRow => {
     const hits = endings.filter(match);
-    const count = (s: 'forehand' | 'backhand') => hits.filter((e) => endingStroke(e.point) === s).length;
+    const strokeHits = typeof strokes === 'function' ? hits.filter(strokes) : hits;
+    const count = (s: 'forehand' | 'backhand') => strokeHits.filter((e) => endingStroke(e.point) === s).length;
     return { label, total: hits.length, forehand: strokes ? count('forehand') : null, backhand: strokes ? count('backhand') : null };
   };
   const mine = (winner: boolean) => (e: Ending) => e.by === player && e.winner === winner;
+  // Receiver winner or server UE: the receiver gained from the disadvantage.
+  const serveDisadvantage = (e: Ending) => e.point.end === 'double_fault' || e.point.end === 'return_winner'
+    || (e.impact === 'serve_disadvantage' && e.winner !== (e.by === e.point.server));
+  const serveAdvantage = (e: Ending) => e.point.end === 'ace' || e.point.end === 'return_error' || e.impact === 'serve_plus_one'
+    || (e.impact === 'serve_advantage' && (mine(true)(e) || (e.by === opp && !e.winner)));
 
   if (games === 'serve') {
     return [
       row('Aces', (e) => e.point.end === 'ace' && e.by === player, false),
       row('Double faults', (e) => e.point.end === 'double_fault' && e.by === player, false),
-      row('Serve +1 (winner at shot 3)', (e) => mine(true)(e) && e.length === 3),
-      row('Serve advantage (winners at 1/3/5)', (e) => mine(true)(e) && oneOf(e.length, 1, 3, 5)),
-      row('Serve disadvantage (opp. winners at 2/4/6)', (e) => e.by === opp && e.winner && oneOf(e.length, 2, 4, 6)),
+      row('Serve +1 winners', (e) => mine(true)(e) && e.impact === 'serve_plus_one'),
+      // Opponent errors carry the opponent's stroke, so only the server's own shots fill Forehand/Backhand.
+      row('Serve advantage (ace / return error / Serve +1 / won in Serve advantage)', serveAdvantage, (e) => e.by === player),
+      row('Serve disadvantage (double fault / return ace / lost in Return advantage)', serveDisadvantage, (e) => e.by === opp),
     ];
   }
   if (games === 'return') {
     return [
       row('Return aces', (e) => e.point.end === 'return_winner' && e.by === player),
       row('Return errors', (e) => e.point.end === 'return_error' && e.by === player),
-      row('Return advantage (winners at 2/4/6)', (e) => mine(true)(e) && oneOf(e.length, 2, 4, 6)),
+      row('Return advantage (return ace / won in Return advantage)', (e) => e.point.end !== 'double_fault' && serveDisadvantage(e), (e) => e.by === player),
     ];
   }
   return [
     row('Winners', mine(true)),
     row('Unforced errors', mine(false)),
-    row('Short rally winners (1-6)', (e) => mine(true)(e) && between(e.length, 1, 6)),
-    row('Short rally UE (1-6)', (e) => mine(false)(e) && between(e.length, 1, 6)),
-    row('Long rally winners (7+)', (e) => mine(true)(e) && between(e.length, 7)),
-    row('Long rally UE (7+)', (e) => mine(false)(e) && between(e.length, 7)),
+    row('Serve-phase winners (direct / Serve +1 / advantage / disadvantage)', (e) => mine(true)(e) && e.phase === 'serve'),
+    row('Serve-phase UE (direct / Serve +1 / advantage / disadvantage)', (e) => mine(false)(e) && e.phase === 'serve'),
+    row('Neutralised winners', (e) => mine(true)(e) && e.phase === 'neutralised'),
+    row('Neutralised UE', (e) => mine(false)(e) && e.phase === 'neutralised'),
   ];
 }
 

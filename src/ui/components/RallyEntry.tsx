@@ -4,6 +4,7 @@ import {
   INCOMING_BALLS,
   INCOMING_DIRECTIONS,
   RETURN_ERRORS,
+  SERVE_IMPACTS,
   SHOT_DIRECTIONS,
   SHOT_POSITIONS,
   SHOT_TYPES,
@@ -22,7 +23,7 @@ interface Props {
 type Draft = Omit<RallyDetail, 'ending'> & { ending: RallyEnding | null };
 
 const EMPTY: Draft = {
-  count: null,
+  impact: 'none',
   ending: null,
   stroke: 'none',
   error: 'none',
@@ -41,7 +42,7 @@ function toDetail(d: Draft, ending: RallyEnding): RallyDetail {
   return isError(ending) ? { ...rest, ending, error } : { ...rest, ending, lucky };
 }
 
-/** Rally entry after "Serve in": rally count, how the point ended, and the last shot. */
+/** Rally entry after "Serve in": serve impact, how the point ended, and the last shot. */
 export default function RallyEntry({ serverName, returnerName, busy, onComplete }: Props) {
   const [d, setD] = useState<Draft>(EMPTY);
 
@@ -57,21 +58,22 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
     if (next.ending) onComplete(toDetail(next, next.ending));
   };
 
-  function pick<K extends 'stroke' | 'error' | 'direction' | 'shotType' | 'position' | 'incomingDirection'>(key: K, value: Draft[K]) {
+  function pick<K extends 'impact' | 'stroke' | 'error' | 'direction' | 'shotType' | 'position' | 'incomingDirection'>(key: K, value: Draft[K]) {
     const next = { ...d, [key]: d[key] === value ? 'none' : value };
     setD(next);
   }
 
+  // Serve + 1 means the server ended the point on shot 3 with a winner or forced error.
+  const pickImpact = (value: Draft['impact']) => {
+    if (value === 'serve_plus_one' && d.impact !== value) setD({ ...d, impact: value, ending: 'server_winner' });
+    else pick('impact', value);
+  };
+  const pickEnding = (ending: RallyEnding) =>
+    setD({ ...d, ending, impact: d.impact === 'serve_plus_one' && ending !== 'server_winner' ? 'none' : d.impact });
+
   return (
     <section className="serve-entry">
-      <button
-        type="button"
-        className="btn btn-big rally-count"
-        disabled={busy}
-        onClick={() => setD({ ...d, count: (d.count ?? 0) + 1 })}
-      >
-        + Rally count: {d.count ?? 'None'}
-      </button>
+      <OptionRow title="Serve Impact State" options={SERVE_IMPACTS} value={d.impact ?? 'none'} cols="two" disabled={busy} onPick={pickImpact} />
 
       <h2>Point ending</h2>
       <div className="choice-grid two">
@@ -82,7 +84,7 @@ export default function RallyEntry({ serverName, returnerName, busy, onComplete 
             className={`btn ${o.tone} ${d.ending === o.value ? 'btn-primary' : ''}`}
             aria-pressed={d.ending === o.value}
             disabled={busy}
-            onClick={() => setD({ ...d, ending: o.value })}
+            onClick={() => pickEnding(o.value)}
           >
             {o.label}
           </button>

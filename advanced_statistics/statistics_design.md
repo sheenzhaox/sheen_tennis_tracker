@@ -113,14 +113,120 @@ $$
 - For the intended analysis, derive counts of 1 for `ace` / `double_fault` and 2 for `return_winner` / `return_error`; these outcomes do not need a `rally` object. For rally outcomes, a convention-compatible recorded count must be an integer at least 3. Missing or incompatible counts have unknown phase, not zero shots or automatically serve-related.
 - **Precedence confirmed 2026-10-14:** inspect `Point.end` first. Its fixed direct-ending count of 1 or 2 takes priority even when `rally.count` is 0, null or missing. Only unresolved rally endings receive the unknown-count exclusion from Serve advantage/disadvantage; a direct ending must not be excluded merely because its rally count is unset. This is analytical derivation, not a stored-data change.
 - The current UI starts `rally.count` at `null` and increments from 1; it does not initialise or enforce the agreed 3+ total-shot convention or parity. No counter change, migration, or new phase metric is implemented by this design update.
+  - **Superseded 2026-10-15:** the rally counter has been removed from recording; new rally points record a [Serve Impact State](#serve-impact-state-replaces-rally-count) instead. The shot-count convention above still governs direct endings and the interpretation of legacy counts.
 - Historical non-null counts may use different conventions. Their meaning must be verified before phase comparisons; do not automatically add 2 or assume all historical counts already include serve and return. No recording-convention version is currently stored.
 - Double faults have known count 1 and a known serve-related phase; do not exclude them from phase eligibility merely because they have no rally. Count each as one server UE and keep the double-fault subtype separately visible. Exclude unrecorded, unresolved-count, and unusable-count points from phase-based denominators and report their coverage separately. A rally count of 0, null or missing is unknown, not a point below shot 7; such points remain eligible for non-phase serve win/loss filters when usable serve data exists.
 - Any future phase rate must specify player perspective, match/set filters, numerator, denominator, and aggregation. Its denominator must use eligible points with known phase in the same filtered population; zero eligible points means unavailable, not 0%. No particular performance rate is agreed here.
 - Implementation checks still required: fixed counts 1/2, including double fault at 1 in the serve-related phase; rally minimum 3; threshold boundary 6/7; serve-plus-one at 3; server/receiver UE attribution; forced-error winner attribution to the causing player; second-serve independence; missing/legacy counts; and forced-error contact convention. The definitions above are not runtime validation results.
 
+### Serve Impact State (replaces rally count)
+
+**Agreed and implemented 2026-10-15 on branch `dev/serve-impact-state`; not deployed.** The rally-stage **+ Rally count** button is replaced by a **Serve Impact State** section with four buttons.
+
+Rationale (user decision): exactly distinguishing rally lengths such as 5 versus 6 or 7, 8 and 9 has limited analytical value and adds recorder workload. What matters is **whether the serve created an advantage, whether that advantage lasted to the end of the point, and whether the point escaped serve influence into a neutral rally**. Serve + 1 is kept as its own state because of its strong correlation with the serve.
+
+| UI label | Stored value | Meaning | Phase |
+| --- | --- | --- | --- |
+| Serve + 1 | `serve_plus_one` | The server ended the point on shot 3 (serve, return, server's next shot) with a winner or forced error; the server wins. | Serve-related |
+| Neutralised | `neutralised` | The point lost serve influence and became a neutral rally before it ended. | Neutralised |
+| Serve advantage | `serve_advantage` | The serve created the initiative for the server and it held until the point ended. | Serve-related |
+| Return advantage (labelled Serve disadvantage until 2026-10-15) | `serve_disadvantage` | The receiver took the initiative against the serve and held it until the point ended. | Serve-related |
+
+- **Label and layout (revised 2026-10-15, user request):** the `serve_disadvantage` button is labelled **Return advantage**; the stored value is unchanged, so existing data needs no migration. Buttons sit in a two-column grid in table order: row 1 Serve + 1 / Neutralised, row 2 Serve advantage / Return advantage. The point log and CSV show the new label. Elsewhere in these docs, "Serve disadvantage point" means a point with this state. The service-game statistic stays named **Serve disadvantage** (server's perspective).
+- **Selection:** optional single choice, default `none`, tap again to clear. `none` means not recorded, not an observed absence of serve impact.
+- **Independent of the ending:** Serve advantage / disadvantage / Neutralised describe who held the initiative, not who won. For example, Serve advantage followed by a server UE is valid.
+- **Serve + 1 consistency:** selecting Serve + 1 also selects the server-winner ending; choosing another Point ending clears Serve + 1. Serve + 1 is therefore always saved with `rally.ending: 'server_winner'`.
+- **Direct endings unchanged:** ace, double fault, return winner and return error never open rally entry. Analysis treats them as serve-related by their ending (fixed counts 1/2 remain).
+- **Storage:** new rally points save `rally.impact`; `rally.count` is no longer written. The field stays optional in the model so older points keep their recorded counts. Points are stored as JSON, so no database migration is needed; public stats links pass `impact` through.
+
+#### Legacy Count Mapping
+
+**Agreed 2026-10-15; implemented analytically, stored data unchanged.** A recorded `rally.impact` always takes precedence. Otherwise a legacy `rally.count` maps as follows:
+
+| Legacy count and ending | Mapped state |
+| --- | --- |
+| 3 with `server_winner` | Serve + 1 |
+| 3-6 with `server_winner` / `server_error` (other than above) | Serve advantage |
+| 3-6 with `returner_winner` / `returner_error` | Serve disadvantage |
+| 7 or more | Neutralised |
+| 0, 1, 2, null or missing | Unknown (excluded from state/phase rows; still in totals) |
+
+Limitations: the mapping uses the ending-shot player as a proxy for initiative, so a legacy server UE at count 5 maps to Serve advantage although initiative was never observed. Legacy counts may follow an older convention (the counter started at 1 and did not enforce 3+), so mapped states for historical data are approximations, not observations. No stored record is rewritten.
+
+#### Implemented Statistics
+
+The normal stats **Forehand / backhand** table (match, shared and player stats) now derives its serve-phase rows from the state instead of shot counts. Winners include forced errors; Lucky balls stay excluded; points with unknown state appear only in the Winners / Unforced errors totals.
+
+| Games filter | Row | Definition (for the selected player) |
+| --- | --- | --- |
+| Service games | Aces, Double faults | Unchanged |
+| Service games | Serve +1 winners | Own winners in Serve + 1 points |
+| Service games | Serve advantage | Points the server won through an ace, a return error, Serve + 1, or a server winner / receiver UE in a Serve advantage point (agreed 2026-10-15). Forehand / Backhand count only the server's own ending shots. |
+| Service games | Serve disadvantage | Points the server lost through a double fault, a return ace, or a receiver winner / server UE in a Serve disadvantage point (agreed 2026-10-15). Forehand / Backhand count only the receiver's ending shots. |
+| Return games | Return aces, Return errors | Unchanged |
+| Return games | Return advantage | Points the receiver won through a return ace, or a receiver winner / server UE in a Return advantage point (agreed 2026-10-15). Excludes double faults. Forehand / Backhand count only the receiver's own ending shots. |
+| All games | Serve-phase winners / UE | Own winners / UEs on direct endings or in Serve + 1 / advantage / disadvantage points |
+| All games | Neutralised winners / UE | Own winners / UEs in Neutralised points |
+
+These replace the former count rows (Serve +1 at shot 3, Serve advantage at 1/3/5, Serve disadvantage and Return advantage at 2/4/6, Short rally 1-6, Long rally 7+). The old parity rows assumed the ending-shot player held the advantage; the new rows use the recorded initiative.
+
+References: [serveImpact, pointPhase, strokeStats](../src/stats/matchStats.ts), [rally entry](../src/ui/components/RallyEntry.tsx), [point log / CSV](../src/ui/components/PointLog.tsx), [public stats payload](../worker/publicStats.ts). **Validated 2026-10-15:** `matchStats.test.ts` covers recorded-state precedence, every legacy mapping row, unknown counts, direct-ending phase and each redefined row; `PointLog.test.ts` covers the exported state label. Full suite of 215 tests across 19 files, app/Worker/migration type checks and the production build pass. The recording screen was not browser-tested.
+
+#### Serve Advantage Statistic
+
+**Agreed 2026-10-15 (user definition); implemented in the Forehand / backhand Service games row.** In statistics, **Serve advantage** counts a service point when it ends with:
+
+- an ace (including unreturnable serve, `end: 'ace'`),
+- a return error (`end: 'return_error'`),
+- Serve + 1 (`rally.impact: 'serve_plus_one'`, always a server winner), or
+- a server winner (`server_winner`) or receiver UE (`returner_error`) in a point recorded as Serve advantage.
+
+Every included point is won by the server. A server UE or receiver winner in a Serve advantage point is excluded, as are points the server wins in Serve disadvantage or Neutralised points. This replaces the earlier count-based definitions (winners at 1/3/5, and the serve-location filter's "server wins before shot 7") and the briefly implemented winners-only row. Legacy points use the mapped state. Return errors and receiver UEs are receiver strokes, so they add to the row total but not to its Forehand / Backhand columns; the receiver-UE attribution in Summary and UE analysis is unchanged.
+
+Example: ace, return error, Serve + 1, server winner in Serve advantage and receiver UE in Serve advantage = 5. A server UE in Serve advantage, and a server winner in Serve disadvantage, add 0.
+
+#### Serve Disadvantage Statistic
+
+**Agreed 2026-10-15 (user definition); implemented in the Forehand / backhand Service games row.** The mirror of Serve advantage. In statistics, **Serve disadvantage** counts a service point when it ends with:
+
+- a double fault (`end: 'double_fault'`),
+- a return ace (`end: 'return_winner'`), or
+- a receiver winner (`returner_winner`) or server UE (`server_error`) in a point recorded as Serve disadvantage.
+
+Every included point is lost by the server. A receiver UE or server winner in a Serve disadvantage point is excluded, as are points the server loses in Serve advantage or Neutralised points. This replaces the earlier count-based definitions (opponent winners at 2/4/6, and the serve-location filter's "server loses before shot 7") and the briefly implemented row counting only opponent return aces plus opponent winners in Serve disadvantage points. Legacy points use the mapped state. Double faults have no forehand/backhand stroke, and server UEs are server strokes, so both add to the row total but not to its Forehand / Backhand columns, which show the receiver's winning shots. Double-fault and server-UE attribution in Summary and UE analysis is unchanged.
+
+Example: double fault, return ace, receiver winner in Serve disadvantage and server UE in Serve disadvantage = 4. A receiver UE in Serve disadvantage, and a receiver winner in Serve advantage, add 0.
+
+#### Return Advantage Statistic
+
+**Agreed 2026-10-15 (user definition); implemented in the Forehand / backhand Return games row.** The receiver's view of the same initiative. In statistics, **Return advantage** counts a return point (the selected player receives) when it ends with:
+
+- a return ace (`end: 'return_winner'`, including a forced error by the server on the return), or
+- a receiver winner (`returner_winner`) or server UE (`server_error`) in a point recorded as Return advantage (`rally.impact: 'serve_disadvantage'`).
+
+**Double faults are excluded:** a double fault is the server's own failure before any return, not an advantage the receiver created. Hence Return advantage = Serve disadvantage of the same points minus double faults.
+
+- **Formula:** count of qualifying points for the selected player in their return games; it is a count, not a rate, so it has no denominator.
+- **Forehand / Backhand:** only the receiver's own ending shots (the return stroke for return aces, `rally.stroke` for rally winners). Server UEs add to the total only.
+- **Excluded:** double faults, return errors, receiver UEs and server winners in Return advantage points, and any point in Serve + 1 / Serve advantage / Neutralised states.
+- **Filters and exclusions:** follows the stats page's match / set / player selection; Lucky balls are excluded; rallies with no recorded state and no usable legacy count are excluded (legacy counts 3-6 ending with a receiver shot map to this state).
+- **Attribution unchanged:** a server UE counted here remains the server's UE in Summary and UE analysis; the receiver is not credited with a winner shot.
+- **Limitations:** the state is the scorer's judgement of initiative, so it does not prove the return caused the outcome. Legacy-mapped points use the ending-shot player as a proxy.
+
+This replaces the count-based definition (receiver winners at 2/4/6) and the briefly implemented winners-only row (return aces plus receiver winners in Return advantage points).
+
+Example: return ace, receiver winner in Return advantage and server UE in Return advantage = 3. A double fault, a receiver UE in Return advantage, and a receiver winner in Serve advantage add 0.
+
+References: `strokeStats` in [matchStats.ts](../src/stats/matchStats.ts); test "counts serve-impact rows from recorded states" in [matchStats.test.ts](../src/stats/matchStats.test.ts). **Validated 2026-10-15:** that test checks a total of 2 (receiver winner and server UE in Return advantage; the double fault excluded) with forehand 1 / backhand 0, and the first fixture checks a return ace counted with a double fault excluded; full suite of 215 tests and the build pass.
+
+#### Open Questions
+
+- **Serve-location outcome filters (agreed 2026-10-15):** the Serve advantage and Serve disadvantage outcome filters use the two definitions above instead of "server wins/loses before shot 7". Attempt attribution remains open. Serve winner, Double fault and Serve win/loss filters are unchanged.
+- Whether to treat a Serve + 1 state with a non-server-winner ending as invalid if one is imported or edited outside the UI. The UI prevents it; analysis currently still counts it as serve-related.
+
 ## Recorded Factor Inventory
 
-**Implemented; source-reviewed 2026-10-13.** This inventory describes the current recording UI and saved data, not proposed metrics. Sources: [serve entry and point persistence](../src/ui/pages/MatchTracker.tsx), [rally entry](../src/ui/components/RallyEntry.tsx), and [field types and option lists](../src/model/types.ts). Verification here is source inspection, not a new runtime test.
+**Implemented; source-reviewed 2026-10-13, rally stage updated 2026-10-15.** This inventory describes the current recording UI and saved data, not proposed metrics. Sources: [serve entry and point persistence](../src/ui/pages/MatchTracker.tsx), [rally entry](../src/ui/components/RallyEntry.tsx), and [field types and option lists](../src/model/types.ts). Verification here is source inspection, not a new runtime test.
 
 Paths below are relative to a saved `Point`; `serves[]` contains one entry per serve attempt. Labels are shown alongside stored values where they differ. Optional single-choice controls start at `none` and can be deselected; this means not recorded, not a negative observation.
 
@@ -146,7 +252,8 @@ Rally entry is reached only after Serve in. The shot factors describe the final 
 
 | Recorded factor / UI label | Available choices (stored values) | Saved field | Requirement and availability |
 | --- | --- | --- | --- |
-| Rally count | None initially; each tap increments by one: 1, 2, 3, ... | `rally.count` | Optional; default `null`, not zero. Agreed meaning is total shots including serve (1) and return (2), so rally endings are 3+. Current UI does not enforce this convention; historical counts need verification. |
+| Serve Impact State | Serve + 1 (`serve_plus_one`), Neutralised (`neutralised`), Serve advantage (`serve_advantage`), Return advantage (`serve_disadvantage`; labelled Serve disadvantage until 2026-10-15) | `rally.impact` | Optional single choice shown first, two-column grid (row 1 Serve + 1 / Neutralised, row 2 Serve advantage / Return advantage); default `none`; deselectable. Selecting Serve + 1 also selects the server-winner Point ending; choosing another ending clears Serve + 1. Added 2026-10-15; absent on older points. See [Serve Impact State](#serve-impact-state-replaces-rally-count). |
+| Rally count (legacy, removed 2026-10-15) | Formerly None, then 1, 2, 3, ... per tap | `rally.count` | No longer displayed or written. Older points may hold a count (or `null`); analysis maps it to a Serve Impact State only when `rally.impact` is absent. Historical counts may not follow the 3+ total-shot convention. |
 | Point ending | Server winner (`server_winner`); returner winner (`returner_winner`); server UE (`server_error`); returner UE (`returner_error`); UI uses player names | `rally.ending` | Required single choice. Identifies the final-shot player and winner/error classification; determines the point winner. |
 | Stroke | Forehand (`forehand`), Backhand (`backhand`) | `rally.stroke` | Optional single choice; default `none`. |
 | Error type | Net (`net`), Long (`long`), Wide (`wide`) | `rally.error` | Only displayed and saved for either UE ending; optional, default `none`; absent for winner endings. |
@@ -212,8 +319,15 @@ Attempt-based counting, missing-location denominator treatment, filter defaults/
 
 The Serve winner filter is broader than shot-winner attribution: a return error remains a receiver UE in Return/UE analysis and does not become a server winner shot in Winner Statistics or Summary. Double fault counts once as a server UE, with its subtype retained; this resolves the earlier open combined-UE inclusion question. Detailed examples and remaining attempt-attribution questions are in [the serve design](serve.md#agreed-outcome-definitions).
 
+**Revised 2026-10-15:** Serve advantage / disadvantage no longer mean server wins / loses before shot 7. They use the [Serve advantage](#serve-advantage-statistic) and [Serve disadvantage](#serve-disadvantage-statistic) statistics, based on the Serve Impact State. Both are now subsets of Serve win / Serve loss respectively; Serve winner remains a subset of Serve advantage and Double fault of Serve disadvantage. Points with no known state enter only win/loss.
+
 ## Decision Record
 
+- **2026-10-15 - Return advantage statistic agreed:** Return advantage = return ace, or receiver winner / server UE in a Return advantage point; double faults excluded. Implemented in the Return games row (Forehand / Backhand from receiver shots only). Replaces the winners-only row.
+- **2026-10-15 - Serve Impact State button relabelled and reordered (user request):** `serve_disadvantage` is shown as **Return advantage**; order is Serve + 1 / Neutralised, then Serve advantage / Return advantage. Stored values, legacy mapping and all statistic definitions are unchanged; the service-game statistic keeps the name Serve disadvantage.
+- **2026-10-15 - Serve disadvantage statistic agreed:** Serve disadvantage = double fault, return ace, or receiver winner / server UE in a Serve disadvantage point. Implemented in the Service games row (Forehand / Backhand from receiver shots only). The serve-location Serve advantage / disadvantage outcome filters adopt both statistics. Return advantage then unchanged (resolved later the same day). Tests and build pass.
+- **2026-10-15 - Serve advantage statistic agreed:** Serve advantage = ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point. Implemented in the Service games row (Forehand / Backhand from server shots only). Tests and build pass.
+- **2026-10-15 - Serve Impact State replaces rally count (implemented, not deployed):** Rally entry records one optional state, Serve + 1 / Serve advantage / Serve disadvantage / Neutralised, instead of tapping a rally count. Agreed with the user: Serve + 1 = server winner or forced error on shot 3; the other states record initiative independently of the ending; legacy counts map analytically (3 + server winner = Serve + 1, 3-6 by ending-shot player, 7+ = Neutralised); the count-based Forehand / backhand rows are redefined on the state. Supersedes count entry and the 6/7 threshold for new rally points; the shot-count convention remains for direct endings and legacy data. Serve-location outcome-filter labels need reconciling (open). 215 tests and the build pass.
 - **2026-10-14 - Page structure deployed / design saved:** Release `358b109` publishes Advanced Analysis structure and unchanged Summary reuse. Serve-location distributions and the other advanced metric details remain design-only. Full release validation: 212 tests, all type checks, build and Worker dry run; live app/Help/Public Stats/CSS content and PWA assets verified, protected APIs reject anonymous requests. See `workflow.md` for deployment versions, verification limits and the next design decisions.
 - **2026-10-14 - Count precedence confirmed:** Direct-ending counts 1/2 override unknown rally-count values for phase and serve-outcome eligibility. Resolve the ending before applying unknown-count exclusions. Updated serve design; no runtime changes.
 - **2026-10-14 - Serve outcomes clarified:** Agreed ace + return error for Serve winner, overlapping early (<7, known count) advantage/disadvantage and all-count win/loss filters, unknown-count exclusion from early filters, and double fault as one server UE. Preserve receiver-UE/shot-winner attribution and the existing Summary. Updated all affected topics; no application implementation.

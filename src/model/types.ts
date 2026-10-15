@@ -154,6 +154,15 @@ export type ShotType = 'topspin' | 'drive_volley' | 'slice' | 'volley' | 'smash'
 export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
 export type IncomingBall = 'slow' | 'fast' | 'heavy' | 'slice' | 'short' | 'deep';
 export type IncomingDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'short_angle' | 'dropshot' | 'none';
+export type ServeImpact = 'serve_plus_one' | 'serve_advantage' | 'serve_disadvantage' | 'neutralised' | 'none';
+
+// Display order fills the two-column grid: Serve + 1 / Neutralised, then Serve advantage / Return advantage.
+export const SERVE_IMPACTS: { value: Exclude<ServeImpact, 'none'>; label: string }[] = [
+  { value: 'serve_plus_one', label: 'Serve + 1' },
+  { value: 'neutralised', label: 'Neutralised' },
+  { value: 'serve_advantage', label: 'Serve advantage' },
+  { value: 'serve_disadvantage', label: 'Return advantage' },
+];
 
 export const INCOMING_BALLS: { value: IncomingBall; label: string }[] = [
   { value: 'slow', label: 'Slow' },
@@ -175,8 +184,10 @@ export const INCOMING_DIRECTIONS: { value: Exclude<IncomingDirection, 'none'>; l
 
 /** Details of the last shot of a rally. */
 export interface RallyDetail {
-  /** Number of shots; null when not counted. */
-  count: number | null;
+  /** Legacy total shot count; no longer recorded for new points. */
+  count?: number | null;
+  /** Serve Impact State; replaces the rally count for new points. */
+  impact?: ServeImpact;
   ending: RallyEnding;
   stroke: Stroke;
   /** Only for unforced errors. */

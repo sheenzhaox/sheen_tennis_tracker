@@ -4,7 +4,9 @@ import {
   errorDirectionStats,
   filterSets,
   pointContexts,
+  pointPhase,
   rallyWinnerStats,
+  serveImpact,
   serveLocationStats,
   setOptions,
   shotTypeStats,
@@ -97,22 +99,67 @@ describe('match stats', () => {
     const allA = byLabel(strokeStats(ctxs, 'A', 'all'));
     expect(allA['Winners']).toMatchObject({ total: 2, forehand: 1, backhand: 0 });
     expect(allA['Unforced errors'].total).toBe(1);
-    expect(allA['Short rally winners'].total).toBe(2);
+    expect(allA['Serve-phase winners'].total).toBe(2);
     const allB = byLabel(strokeStats(ctxs, 'B', 'all'));
     expect(allB['Winners']).toMatchObject({ total: 1, forehand: 1 });
-    expect(allB['Long rally UE']).toMatchObject({ total: 1, backhand: 1 });
+    expect(allB['Neutralised UE']).toMatchObject({ total: 1, backhand: 1 });
 
     const serveA = byLabel(strokeStats(ctxs, 'A', 'serve'));
     expect(serveA['Aces']).toMatchObject({ total: 1, forehand: null });
     expect(serveA['Double faults'].total).toBe(1);
-    expect(serveA['Serve +1']).toMatchObject({ total: 1, forehand: 1 });
-    expect(serveA['Serve advantage'].total).toBe(2);
-    expect(serveA['Serve disadvantage']).toMatchObject({ total: 1, forehand: 1 });
+    expect(serveA['Serve +1 winners']).toMatchObject({ total: 1, forehand: 1 });
+    expect(serveA['Serve advantage']).toMatchObject({ total: 2, forehand: 1, backhand: 0 });
+    expect(serveA['Serve disadvantage']).toMatchObject({ total: 2, forehand: 1, backhand: 0 });
 
     const returnB = byLabel(strokeStats(ctxs, 'B', 'return'));
     expect(returnB['Return aces']).toMatchObject({ total: 1, forehand: 1 });
     expect(returnB['Return advantage'].total).toBe(1);
     expect(strokeStats(ctxs, 'A', 'return').every((r) => r.total === 0)).toBe(true);
+  });
+
+  it('uses the recorded serve impact and maps legacy rally counts', () => {
+    const r = (ending: RallyDetail['ending'], extra: Partial<RallyDetail>) => point('A', 'A', 'rally', [serve('in')], rally(ending, extra));
+    expect(serveImpact(r('returner_winner', { impact: 'serve_advantage', count: 9 }))).toBe('serve_advantage');
+    expect(serveImpact(r('server_winner', { count: 3 }))).toBe('serve_plus_one');
+    expect(serveImpact(r('server_error', { count: 3 }))).toBe('serve_advantage');
+    expect(serveImpact(r('returner_winner', { count: 6 }))).toBe('serve_disadvantage');
+    expect(serveImpact(r('server_winner', { count: 7 }))).toBe('neutralised');
+    for (const count of [null, 0, 2]) expect(serveImpact(r('server_winner', { count }))).toBeNull();
+    expect(serveImpact(r('server_winner', { impact: 'none' }))).toBeNull();
+    expect(pointPhase(point('A', 'B', 'double_fault', [serve('fault'), serve('fault')]))).toBe('serve');
+    expect(pointPhase(r('server_winner', { impact: 'neutralised' }))).toBe('neutralised');
+    expect(pointPhase(r('server_winner', {}))).toBeNull();
+  });
+
+  it('counts serve-impact rows from recorded states', () => {
+    const r = (winner: Side, ending: RallyDetail['ending'], impact: RallyDetail['impact']) =>
+      point('A', winner, 'rally', [serve('in')], rally(ending, { impact, stroke: 'forehand' }));
+    const contexts = pointContexts(match, [
+      r('A', 'server_winner', 'serve_plus_one'),
+      r('A', 'server_winner', 'serve_advantage'),
+      r('B', 'returner_winner', 'serve_disadvantage'),
+      r('B', 'server_error', 'serve_advantage'),
+      r('A', 'server_winner', 'neutralised'),
+      r('A', 'server_winner', 'none'),
+      r('A', 'returner_error', 'serve_advantage'),
+      r('A', 'server_winner', 'serve_disadvantage'),
+      r('B', 'server_error', 'serve_disadvantage'),
+      point('A', 'B', 'double_fault', [serve('fault'), serve('fault')]),
+      point('A', 'A', 'return_error', [serve('return_error', { return: { stroke: 'backhand', direction: 'none' } })]),
+    ]);
+    const byLabel = (rows: ReturnType<typeof strokeStats>) => Object.fromEntries(rows.map((row) => [row.label.split(' (')[0], row.total]));
+    expect(byLabel(strokeStats(contexts, 'A', 'serve'))).toMatchObject({
+      'Serve +1 winners': 1, 'Serve advantage': 4, 'Serve disadvantage': 3,
+    });
+    // Errors count in the total but their strokes belong to the other player.
+    const serveRows = strokeStats(contexts, 'A', 'serve');
+    expect(serveRows.find((row) => row.label.startsWith('Serve advantage'))).toMatchObject({ forehand: 2, backhand: 0 });
+    expect(serveRows.find((row) => row.label.startsWith('Serve disadvantage'))).toMatchObject({ forehand: 1, backhand: 0 });
+    expect(strokeStats(contexts, 'B', 'return').find((row) => row.label.startsWith('Return advantage')))
+      .toMatchObject({ total: 2, forehand: 1, backhand: 0 });
+    expect(byLabel(strokeStats(contexts, 'A', 'all'))).toMatchObject({
+      Winners: 5, 'Unforced errors': 3, 'Serve-phase winners': 3, 'Serve-phase UE': 3, 'Neutralised winners': 1, 'Neutralised UE': 0,
+    });
   });
 
   it('rally winners by direction and shot type', () => {

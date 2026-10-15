@@ -10,6 +10,7 @@ import {
   RECORDED_SHOT_TYPES,
   RETURN_ERRORS,
   RETURN_STROKES,
+  SERVE_IMPACTS,
   SERVE_LOCATIONS,
   SERVE_RESULTS,
   SERVE_TYPES,
@@ -52,7 +53,7 @@ function describeRally(r: RallyDetail, serverName: string, returnerName: string)
   const incomingBall = INCOMING_BALLS.filter((option) => r.incomingBall?.includes(option.value)).map((option) => option.label).join(' / ');
   const incomingDirection = label(INCOMING_DIRECTIONS, r.incomingDirection);
   const parts = [
-    `Rally ${r.count ?? 'None'}`,
+    label(SERVE_IMPACTS, r.impact) ?? (r.count != null ? `Rally ${r.count}` : undefined),
     `${who} ${how}`,
     label(STROKES, r.stroke),
     label(RETURN_ERRORS, r.error),

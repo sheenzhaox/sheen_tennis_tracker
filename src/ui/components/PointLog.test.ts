@@ -76,6 +76,19 @@ describe('pointLogCsv', () => {
     }]);
     expect(csv).toContain('"Rally 4, Alice winner & forced error, Forehand, Down line, Drive volley, Net"');
   });
+
+  it('exports the serve impact state instead of a legacy count', () => {
+    const csv = pointLogCsv(props, [{
+      ...point, end: 'rally', serves: [{ result: 'in', location: 'none', type: 'none' }],
+      rally: { impact: 'serve_plus_one', ending: 'server_winner', stroke: 'forehand', direction: 'none', shotType: 'none', position: 'none' },
+    }]);
+    expect(csv).toContain('"Serve + 1, Alice winner & forced error, Forehand"');
+    const unset = pointLogCsv(props, [{
+      ...point, end: 'rally',
+      rally: { impact: 'none', ending: 'server_winner', stroke: 'none', direction: 'none', shotType: 'none', position: 'none' },
+    }]);
+    expect(unset).toContain(',Alice winner & forced error,');
+  });
   it('escapes names containing quotes, commas, and newlines, and protects formula-like names', () => {
     const csv = pointLogCsv({ ...props, nameA: 'Zo\u00eb, "Ace"\nZhao', nameB: '=1+1' }, [point]);
     expect(csv).toContain('"Zo\u00eb, ""Ace""\nZhao"');

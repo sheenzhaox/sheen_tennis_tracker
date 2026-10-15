@@ -66,7 +66,7 @@ export function publicStatsData(match: Match, points: Point[], nameA: string, na
         return: serve.return ? { stroke: serve.return.stroke, direction: serve.return.direction, error: serve.return.error } : undefined,
       })),
       rally: point.rally ? {
-        count: point.rally.count, ending: point.rally.ending, stroke: point.rally.stroke,
+        count: point.rally.count, impact: point.rally.impact, ending: point.rally.ending, stroke: point.rally.stroke,
         error: point.rally.error, lucky: point.rally.lucky, direction: point.rally.direction,
         shotType: point.rally.shotType, position: point.rally.position,
       } : undefined,

@@ -14,6 +14,8 @@ Record ideas and definitions for analysing shots recorded as unforced errors. Ke
 - Rally `server_error` and `returner_error` identify the erring player. Total count includes the ending UE stroke: a server UE at shot 3 is an odd-shot ending even though the receiver wins; a receiver UE at shot 4 is even even though the server wins.
 - UEs at shots 2-6 are serve-related; rally UEs at 7+ are neutralised. This does not prove the serve caused any individual error.
 - Inputs: `end`, `server`, `winner`, conditional `serves[].return.error`, and `rally.ending` / `rally.count` / `rally.error`. Optional error direction being `none` does not erase an explicitly recorded UE outcome.
+- **Updated 2026-10-15:** rally UEs now take their phase from `rally.impact` ([Serve Impact State](statistics_design.md#serve-impact-state-replaces-rally-count)) rather than a count. Normal stats rows Short/Long rally UE became Serve-phase UE (double faults, return errors and rally UEs in Serve + 1 / advantage / disadvantage points) and Neutralised UE. Because the state records initiative independently of the ending, a UE by the player holding the advantage is representable.
+- **Serve advantage / disadvantage statistics agreed 2026-10-15:** receiver UEs (return errors, and receiver UEs in Serve advantage points) count in [Serve advantage](statistics_design.md#serve-advantage-statistic); double faults and server UEs in Serve disadvantage points count in [Serve disadvantage](statistics_design.md#serve-disadvantage-statistic). A UE by the player holding the initiative (server UE in Serve advantage, receiver UE in Serve disadvantage) counts in neither. Server UEs in Return advantage points also count in the receiver's Return advantage row; double faults do not. UE attribution and totals are unchanged.
 - **UE inclusion agreed 2026-10-14:** double fault counts as one UE of the server, with known total shot count 1 and a serve-related phase. Retain the `double_fault` subtype within the total; it is not a shot-2 return UE or rally UE. Two fault attempts do not contribute two UEs. This resolves the previously open combined-UE inclusion question and agrees with existing Summary behavior.
 - A rally forced error is credited as the causing player's winner, not as an additional UE by the opponent; it must not be counted in both categories.
 
@@ -36,6 +38,8 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Serve advantage / disadvantage statistics agreed:** receiver UEs feed Serve advantage; double faults and server UEs in Serve disadvantage feed Serve disadvantage; UEs by the player holding the initiative feed neither.
+- **2026-10-15 - Serve Impact State:** UE phase rows use the recorded state (legacy counts mapped). Implemented, not deployed.
 - **2026-10-14 - UE inclusion resolved:** Double fault contributes one UE to the server's total with its subtype retained. Return error stays receiver UE despite inclusion in the broader Serve winner filter. Supersedes the earlier open double-fault rollup question; no application changes.
 - **2026-10-13 - Agreed clarification:** Double fault counts as 1; forced errors remain winners credited to the causing player, not UEs. Combined UE-rollup inclusion of double faults is a separate metric decision.
 - **2026-10-13 - Agreed:** Recorded UE attribution, total-shot counting and serve-related / neutralised context while keeping forced errors in the winner category.

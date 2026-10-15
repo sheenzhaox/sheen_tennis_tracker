@@ -265,8 +265,13 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
           rows={strokes.map((r) => [r.label, r.total, r.forehand ?? '-', r.backhand ?? '-'])}
         />
         <p className="muted small">
-          Neither selected = all games. Shot count: ace / double fault = 1, return ace / return error = 2, rallies use the recorded
-          rally count (rallies without a count only appear in totals). Winners include forced errors. Return rows use the return stroke.
+          Neither selected = all games. Aces, double faults, return aces and return errors are serve-phase points. Rallies use the
+          recorded Serve Impact State; older rally counts map to it (3 + server winner = Serve +1, 3-6 = advantage/disadvantage by
+          ending player, 7+ = Neutralised). Rallies without either only appear in totals. Winners include forced errors. Return rows
+          use the return stroke. Serve advantage = ace, return error, Serve +1, or server winner / receiver UE in a Serve advantage
+          point; Serve disadvantage = double fault, return ace, or receiver winner / server UE in a Return advantage point; Return
+          advantage = the same without double faults. Their
+          Forehand / Backhand show only the shots of the player who gained.
         </p>
 
         <h2>Rally winners</h2>

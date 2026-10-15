@@ -14,6 +14,7 @@ Record ideas and definitions for analysing serve performance from recorded match
 - Serve plus one is the server's next shot, shot 3; a winner on it follows serve (1) and return (2).
 - Total counts 1-6 define the serve-related phase; 7+ define neutralised rallies. The latter imply reduced assumed serve influence, not proof of zero influence or causation in short points.
 - Relevant inputs: `end`, `server`, `winner`, `serves[]`, and for rally outcomes `rally.ending` / `rally.count`. Counts absent from direct serve/return endings are derived from their outcome; missing or convention-uncertain rally counts must not be guessed.
+- **Updated 2026-10-15:** new rally points record `rally.impact` ([Serve Impact State](statistics_design.md#serve-impact-state-replaces-rally-count)) instead of `rally.count`. Serve + 1 = server winner or forced error on shot 3; Serve advantage / Serve disadvantage = which player held the serve-created initiative to the end of the point; Neutralised = the point became a neutral rally. Serve + 1, advantage and disadvantage are serve-related; Neutralised replaces 7+. Legacy counts map to a state only when `rally.impact` is absent.
 
 ## Ideas and Open Questions
 
@@ -83,16 +84,16 @@ Current scope is one completed match. No cross-match aggregation is requested. I
 | Outcome filter | Agreed definition | Fields / condition |
 | --- | --- | --- |
 | Serve winner | Ace (including the existing unreturnable-serve category) or return error | `end` is `ace` or `return_error`; both award the point to the server. |
-| Serve advantage | Server wins the point before shot 7 | $W$ and a known $1 \leq N < 7$. |
+| Serve advantage | **Revised 2026-10-15:** ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point | See [Serve advantage statistic](statistics_design.md#serve-advantage-statistic). Formerly $W$ and a known $1 \leq N < 7$. |
 | Serve win | Server wins the point, regardless of shot count | $W$; includes serve winners, serve advantages, wins at 7+ and wins with unknown count. |
 | Double fault | Double fault by the server; also one UE of the server | `end: 'double_fault'`; count 1, regardless of the two attempts. |
-| Serve disadvantage | Server loses the point before shot 7 | Not $W$ and a known $1 \leq N < 7$. |
+| Serve disadvantage | **Revised 2026-10-15:** double fault, return ace, or receiver winner / server UE in a Serve disadvantage point | See [Serve disadvantage statistic](statistics_design.md#serve-disadvantage-statistic). Formerly not $W$ and a known $1 \leq N < 7$. |
 | Serve loss | Server loses the point, regardless of shot count | Not $W$; includes double faults, serve disadvantages, losses at 7+ and losses with unknown count. |
 
 Apply these definitions within the eligible serve-statistics population; the existing Lucky ball exclusion remains in force. A manual point's known winner alone does not supply a recorded serve attempt for the location distribution.
 
-- Serve winner is a subset of Serve advantage and Serve win for valid direct endings with their known counts. Double fault is a subset of Serve disadvantage and Serve loss. Do not subtract these subsets from the broader win/loss filters, or add the six filtered counts together as a total.
-- Advantage/disadvantage describe an early point result, not an observed advantageous/disadvantageous court position after the return and not proof of a causal serve effect.
+- Serve winner is a subset of Serve advantage and Serve win for valid direct endings with their known counts. Double fault is a subset of Serve disadvantage and Serve loss. Do not subtract these subsets from the broader win/loss filters, or add the six filtered counts together as a total. Since 2026-10-15, Serve advantage is a subset of Serve win and Serve disadvantage a subset of Serve loss.
+- Advantage/disadvantage describe an early point result, not an observed advantageous/disadvantageous court position after the return and not proof of a causal serve effect. **Revised 2026-10-15:** for rallies they now rely on the recorded Serve Impact State (the scorer's judgement of initiative), still not proof of a causal serve effect.
 - The Serve winner filter deliberately includes receiver return UEs. A return error remains a receiver UE in error/return analysis; membership in this serve filter does not also credit a server winner shot in the separate Winner Statistics or Summary. This preserves their agreed attribution rules.
 - Double fault contributes once to the server's UE total, with its double-fault subtype separately identifiable. This resolves the previously open UE-inclusion decision and agrees with the existing Summary behavior.
 
@@ -102,30 +103,36 @@ Apply these definitions within the eligible serve-statistics population; the exi
 
 1. `end: 'ace'` or `end: 'double_fault'`: use count **1**, even if `rally.count` is 0, null or missing, or no rally object exists.
 2. `end: 'return_winner'` or `end: 'return_error'`: use count **2** under the same conditions.
-3. Only for `end: 'rally'`, use a verified, convention-compatible recorded count of at least 3. A count of 0, null, missing or otherwise unusable/unverified means unknown. These rally points enter only Serve win or Serve loss among the six outcome filters, never Serve advantage or Serve disadvantage. They remain eligible for All outcomes if the required serve data exists.
+3. Only for `end: 'rally'`, use a verified, convention-compatible recorded count of at least 3. A count of 0, null, missing or otherwise unusable/unverified means unknown. These rally points enter only Serve win or Serve loss among the six outcome filters, never Serve advantage or Serve disadvantage. They remain eligible for All outcomes if the required serve data exists. **Superseded 2026-10-15 for rallies:** use the Serve Impact State (`rally.impact`, else the legacy count mapping); rallies with no known state enter only Serve win or Serve loss.
 
 Thus an ace or return error with an unset rally count still qualifies for Serve winner, Serve advantage and Serve win; a double fault or return winner still qualifies for Serve disadvantage and Serve loss (and the double fault also for its own filter). Do not apply the unknown-count exclusion before inspecting `Point.end`.
 
 The current recording UI stores an untouched rally count as `null`, not 0. Support both unknown representations analytically; no storage or UI change is requested. This ending-based derivation is not guessing a missing rally count. Historical rally counts remain subject to the shared compatibility rules; do not silently repair them.
 
-| Point result | Known count | Matching outcome filters |
+**Examples, revised 2026-10-15** (rally rows use the Serve Impact State instead of a count; the former count-6 / 7+ rally rows are superseded):
+
+| Point result | Known count / state | Matching outcome filters |
 | --- | --- | --- |
 | Ace / unreturnable serve | 1 | Serve winner, Serve advantage, Serve win |
 | Return error by receiver | 2 | Serve winner, Serve advantage, Serve win; also receiver UE attribution in the relevant error analysis |
 | Return winner by receiver | 2 | Serve disadvantage, Serve loss |
 | Double fault | 1 | Double fault, Serve disadvantage, Serve loss; also one server UE |
-| Server wins a rally point | 6 | Serve advantage, Serve win |
-| Server loses a rally point | 6 | Serve disadvantage, Serve loss |
-| Server wins / loses a rally point | 7 or more | Serve win / Serve loss respectively |
-| Server wins / loses a rally point | 0, null, missing or unverified | Serve win / Serve loss respectively; excluded from advantage/disadvantage |
+| Server winner | Serve + 1 | Serve advantage, Serve win |
+| Server winner / receiver UE | Serve advantage | Serve advantage, Serve win |
+| Server UE / receiver winner | Serve advantage | Serve loss |
+| Receiver winner / server UE | Serve disadvantage | Serve disadvantage, Serve loss |
+| Server winner / receiver UE | Serve disadvantage | Serve win |
+| Server wins / loses a rally point | Neutralised, or no known state | Serve win / Serve loss respectively; excluded from advantage/disadvantage |
 
-For an advantage/disadvantage-filtered location distribution, both numerator and denominator use only attempts attributed to qualifying known-count points. Unknown-count points remain in eligible win/loss-filtered populations. Report unknown-count coverage separately rather than presenting exclusions as zero observed advantages/disadvantages.
+For an advantage/disadvantage-filtered location distribution, both numerator and denominator use only attempts attributed to qualifying points. Points with no known state remain in eligible win/loss-filtered populations. Report unknown-state coverage separately rather than presenting exclusions as zero observed advantages/disadvantages.
 
 **Still open: attempt attribution, not outcome meaning.** Decide whether a selected point-outcome filter uses only the final serve attempt or also a preceding first fault. In particular, whether Double fault selects the second fault only or both attempts determines whether 1st serve + Double fault is non-empty. The proposed final-attempt attribution for Serve winner is not yet agreed. Point-level subset relationships do not by themselves settle this location-counting rule.
 
+**Open since 2026-10-15: rally count removed.** New rally points have no count, so "known count below 7" cannot be evaluated for them. **Resolved 2026-10-15:** use the agreed [Serve advantage](statistics_design.md#serve-advantage-statistic) and [Serve disadvantage](statistics_design.md#serve-disadvantage-statistic) statistics. A server rally win counts as Serve advantage only via Serve + 1 or a server winner / receiver UE in a Serve advantage point; a server rally loss counts as Serve disadvantage only via a receiver winner / server UE in a Serve disadvantage point.
+
 #### Inputs, Missing Data and Limits
 
-- Required sources: live `Point` records for the match, `server`, `serves[].location`, attempt order and `serves[].result`; ordered point winners plus the match's saved rules/first server for court-side and key-point context. Outcome filters use `end`, `winner`, `server`, and `rally.count` for rally advantage/disadvantage eligibility. `rally.ending` supports shot-attribution consistency checks, not a requirement to guess a missing count. No new recorded fields are agreed here.
+- Required sources: live `Point` records for the match, `server`, `serves[].location`, attempt order and `serves[].result`; ordered point winners plus the match's saved rules/first server for court-side and key-point context. Outcome filters use `end`, `winner`, `server`, `rally.ending` and `rally.impact` (else legacy `rally.count` via the mapping) for rally advantage/disadvantage eligibility. `rally.ending` supports shot-attribution consistency checks, not a requirement to guess a missing count. No new recorded fields are agreed here.
 - Preserve the existing Lucky ball policy: exclude those points' attempts from detailed serve statistics. Manual/unrecorded points have no serve attempts; do not manufacture a location or attempt number. Report missing serve records separately from attempts with Not recorded location.
 - Missing location remains Not recorded, not Body, Wide or T. Missing optional serve type does not exclude an otherwise eligible location observation. Do not reconstruct missing attempt order or classify malformed records from point winner alone; report unusable records separately.
 - Before outcome filtering, expose the count of candidate attempts whose outcome cannot be classified when applicable. A known location does not resolve an unknown outcome or legacy shot-count convention.
@@ -136,11 +143,13 @@ For an advantage/disadvantage-filtered location distribution, both numerator and
 
 **Not implemented.** Existing [serveLocationStats, pointContexts and situationsOf](../src/stats/matchStats.ts) provide nearby source references, but the current Serve location table displays in/won ratios, not this proposed distribution, and has no six-category outcome filter. Existing [statistics tests](../src/stats/matchStats.test.ts) do not validate the new design.
 
-Before implementation, agree fault/attempt attribution, denominator, defaults/cardinality and key-point edge cases. Future tests should cover both players; deuce/ad; first/second attempts and two-attempt counting; location/fault-type separation; each combined filter; no-ad overlap; tiebreak exclusions; missing location, context, serves and legacy counts; Lucky/manual exclusions with preserved score replay; empty denominators and rounding. Outcome regressions must cover ace/return error in Serve winner, the overlapping win/loss subsets, exact 6/7 boundaries, zero/null/missing counts excluded only from advantage/disadvantage, fixed direct-ending counts without rally metadata, and double fault counted once as server UE. Preserve separate receiver-UE attribution and unchanged Summary totals. No new runtime validation is claimed by this design update.
+Before implementation, agree fault/attempt attribution, denominator, defaults/cardinality and key-point edge cases. Future tests should cover both players; deuce/ad; first/second attempts and two-attempt counting; location/fault-type separation; each combined filter; no-ad overlap; tiebreak exclusions; missing location, context, serves and legacy counts; Lucky/manual exclusions with preserved score replay; empty denominators and rounding. Outcome regressions must cover ace/return error in Serve winner, the overlapping win/loss subsets, each Serve Impact State × ending combination and the legacy count mapping, unknown states excluded only from advantage/disadvantage, fixed direct-ending counts without rally metadata, and double fault counted once as server UE. Preserve separate receiver-UE attribution and unchanged Summary totals. No new runtime validation is claimed by this design update.
 
 ## Implementation and Validation
 
 **2026-10-14 - Page structure implemented:** Advanced Analysis reserves a heading-only Serve Statistics section. General Statistics reuses the existing Summary serve ratios unchanged; see the [reused Summary contract](statistics_design.md#reused-summary-contract) for inputs, denominators and exclusions. No new advanced serve metric is implemented.
+
+**2026-10-15 - Serve Impact State implemented (not deployed):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count). Advanced Analysis Serve Statistics remains heading-only.
 
 The shared rules are agreed, not newly implemented here. Current rally entry does not enforce total counts starting at 3. Required future checks include aces and double faults at 1, return outcomes at 2 (including return error in the Serve winner filter), serve plus one at 3, the 6/7 boundary, and second-serve independence. A double fault is eligible for the serve-related phase without rally metadata. Resolve legacy rally counts before claiming complete phase coverage.
 
@@ -148,6 +157,9 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Serve disadvantage agreed:** double fault, return ace, or receiver winner / server UE in a Serve disadvantage point. Replaces the before-shot-7 meaning for the outcome filter and the stats row. Outcome examples revised to the state.
+- **2026-10-15 - Serve advantage agreed:** ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point. Replaces the before-shot-7 meaning for the outcome filter and the stats row.
+- **2026-10-15 - Serve Impact State replaces rally count:** Recording and the service-game count rows switched to the four-state model. The serve-location advantage/disadvantage outcome filters need a count-free definition and distinct labels (proposal above, not agreed).
 - **2026-10-14 - Count precedence confirmed:** Derive counts 1/2 from direct endings before checking for an unknown rally count. A stored 0, null or missing rally count cannot override a direct ending's known count or exclude it from advantage/disadvantage. Unknown-count win/loss-only behavior applies to unresolved rally endings. Documentation only.
 - **2026-10-14 - Outcome definitions agreed:** Serve winner = ace/unreturnable serve or return error; advantage/disadvantage = server win/loss at known count below 7; win/loss = all eligible service points won/lost, including unknown-count points. Filters overlap. Zero/null/missing rally counts are excluded from advantage/disadvantage. Fixed direct-ending counts remain known. Double fault counts once as server UE. Return error remains receiver UE for shot attribution and the unchanged Summary; the broader serve-filter label does not redefine Winner Statistics. Supersedes the open outcome meanings and UE-inclusion question below. Attempt attribution remains open; documentation only.
 - **2026-10-14 - Design requirement:** Added player serve-location distribution with counts and percentages and the requested court-side, attempt, key-point and six-label outcome filters. Attempt-based counting, a denominator including Not recorded, filter defaults/cardinality and score-context reuse are proposals. Advantage/disadvantage and win/loss meanings, category overlap and double-fault attribution remain open. Documentation only; no Advanced Analysis implementation.

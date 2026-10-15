@@ -9,12 +9,13 @@ Record ideas and definitions for analysing shots recorded as winners, including 
 **Agreed 2026-10-13.** Apply the [shared outcome and shot-count model](statistics_design.md#agreed-outcome-and-shot-count-model).
 
 - Winner and forced error are one category, credited to the player who produced the winning/forcing shot. An opponent UE awards a point but is not counted as a winner shot.
-- **Serve-filter clarification, 2026-10-14:** the Serve Statistics filter named Serve winner includes `ace` and `return_error`. This is a broader service-outcome grouping, not the Winner Statistics shot category: a return error remains receiver UE and does not add a server winner shot to this topic or the unchanged Summary. A server win before shot 7 qualifies as Serve advantage whether it ended through a winner or an opponent UE.
+- **Serve-filter clarification, 2026-10-14:** the Serve Statistics filter named Serve winner includes `ace` and `return_error`. This is a broader service-outcome grouping, not the Winner Statistics shot category: a return error remains receiver UE and does not add a server winner shot to this topic or the unchanged Summary. A server win before shot 7 qualifies as Serve advantage whether it ended through a winner or an opponent UE. **Revised 2026-10-15:** Serve advantage now means ace, return error, Serve + 1, or a server winner / receiver UE in a Serve advantage point ([definition](statistics_design.md#serve-advantage-statistic)); it remains a point-outcome grouping, not a winner-shot count. Serve disadvantage likewise means double fault, return ace, or a receiver winner / server UE in a Serve disadvantage point ([definition](statistics_design.md#serve-disadvantage-statistic)). A winner by the player without the initiative (server winner in Serve disadvantage, receiver winner in Serve advantage) counts in neither.
 - For a rally forced error, choose `server_winner` if the server caused it or `returner_winner` if the receiver caused it. Attribute the recorded final-shot factors to that causing player; do not record the opponent's forced error as a UE or count it as a second outcome.
 - Map `ace` to a server winner at shot 1; `return_winner` to a receiver winner at shot 2; and rally `server_winner` / `returner_winner` to the respective player's winner at a recorded total of 3+.
 - Server endings normally have odd counts and receiver endings even counts. Example: serve (1), return (2), server winner (3) is serve plus one. For forced-error contacts, the shared counting edge case must be resolved before parity can be enforced.
 - Winner endings on shots 1-6 are serve-related; those at 7+ are neutralised. These are contextual categories, not causal claims or an agreed weighted winner score.
 - Inputs: `end`, `server`, `winner`, `rally.ending`, `rally.count`, and applicable final-shot factors. Keep direct serve/return outcomes distinct from rally-only metadata when grouping winners.
+- **Updated 2026-10-15:** rally winners now take their phase from `rally.impact` ([Serve Impact State](statistics_design.md#serve-impact-state-replaces-rally-count)): Serve + 1 / Serve advantage / Serve disadvantage are serve-related, Neutralised replaces 7+. Normal stats rows Short/Long rally winners became Serve-phase winners and Neutralised winners; winners without a state stay in the Winners total only.
 
 ## Ideas and Open Questions
 
@@ -35,6 +36,7 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Serve Impact State:** Winner phase rows use the recorded state (legacy counts mapped). Serve + 1 is now an explicitly recorded server winner at shot 3. Implemented, not deployed.
 - **2026-10-14 - Cross-topic clarification:** Distinguished the agreed ace + return error Serve winner filter from shot-winner attribution. Serve advantage/win filters describe point results and overlap; they do not redefine Winner Statistics or Summary counts. Documentation only.
 - **2026-10-13 - Confirmed attribution:** A rally forced error is a winner credited to the player who caused it. Final unsuccessful-contact counting remains separate from winner attribution; no calculations changed.
 - **2026-10-13 - Agreed:** Confirmed winner includes forced error and documented shot-count/phase interpretation without introducing a new metric.
