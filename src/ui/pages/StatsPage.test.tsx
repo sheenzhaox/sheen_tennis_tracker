@@ -22,7 +22,7 @@ const stats = (points: Point[]) => renderToStaticMarkup(
 );
 
 describe('rally shot options and stats', () => {
-  it('reuses the unchanged Summary in Advanced Analysis without other statistics details', () => {
+  it('reuses the unchanged Summary in Advanced Analysis and adds the serve tables', () => {
     const rally = point('drive_volley');
     const points: Point[] = [rally, { ...rally, id: 'lucky', seq: 1, rally: { ...rally.rally!, lucky: true } },
       { ...rally, id: 'manual', seq: 2, end: 'unrecorded', serves: [], rally: undefined },
@@ -31,7 +31,12 @@ describe('rally shot options and stats', () => {
     const normal = stats(points);
     const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
       points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
-    expect(advanced.match(/<table.*?<\/table>/g)).toEqual([normal.match(/<table.*?<\/table>/)?.[0]]);
+    const tables = advanced.match(/<table.*?<\/table>/g) ?? [];
+    expect(tables[0]).toEqual(normal.match(/<table.*?<\/table>/)?.[0]);
+    expect(tables).toHaveLength(6);
+    // Lucky ball and manual points are excluded: 2 service points (Serve + 1 rally and double fault).
+    expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
+    expect(tables[3]).toContain('<th>- Double fault</th><td>1</td><td>50%</td><td>0</td><td>0%</td>');
     expect(advanced).toContain('>Set 1</button>');
     expect(advanced).toContain('Not recorded');
     expect(normal).not.toContain('Advanced Analysis');

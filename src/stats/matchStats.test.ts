@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
+  breakPointsSaved,
   errorTypeStats,
   errorDirectionStats,
   filterSets,
+  locationRepeats,
   pointContexts,
   pointPhase,
   rallyWinnerStats,
+  serveDistribution,
+  serveFaults,
   serveImpact,
+  serveImpactStats,
   serveLocationStats,
+  servePerformance,
+  serviceGamesHeld,
   setOptions,
   shotTypeStats,
   strokeStats,
   summary,
+  type ServeFilters,
 } from './matchStats';
 import { DEFAULT_RULES } from '../model/rules';
 import type { Match, Point, RallyDetail, Serve, Side } from '../model/types';
@@ -336,5 +344,83 @@ describe('match stats', () => {
     expect(filterSets(c, [])).toHaveLength(51);
     expect(filterSets(c, [2])).toHaveLength(3);
     expect(filterSets(c, [0, 2])).toHaveLength(27);
+  });
+});
+
+describe('advanced serve statistics', () => {
+  const all: ServeFilters = { server: 'A', sets: [], sides: [], attempts: [], keyPoints: [], locations: [] };
+  const ctxs = pointContexts(match, points);
+
+  it('distributes serve attempts, faults included, by location and type', () => {
+    const d = serveDistribution(ctxs, all);
+    expect([d.t.none, d.wide.none, d.body.none, d.none.none]).toEqual([2, 2, 2, 1]);
+    const first = serveDistribution(ctxs, { ...all, attempts: [1] });
+    expect([first.t.none, first.wide.none, first.body.none, first.none.none]).toEqual([2, 2, 0, 1]);
+    expect(serveDistribution(ctxs, { ...all, locations: ['t'] }).wide.none).toBe(2);
+    expect(serveDistribution(ctxs, { ...all, server: 'B' }).t.none).toBe(0);
+  });
+
+  it('attributes service points to their last serve for performance and impact', () => {
+    expect(servePerformance(ctxs, all).all).toEqual({
+      points: 5, serveWinners: 1, servePlusOne: 1, wonDueToServe: 2, ueInAdvantage: 0, doubleFaults: 1, lostDueToServe: 2,
+    });
+    const second = servePerformance(ctxs, { ...all, attempts: [2] }).all;
+    expect([second.points, second.doubleFaults, second.lostDueToServe]).toEqual([2, 1, 1]);
+    expect(servePerformance(ctxs, { ...all, locations: ['t'] }).all).toMatchObject({ points: 2, wonDueToServe: 2 });
+    expect(servePerformance(ctxs, { ...all, keyPoints: ['first'] }).all.points).toBe(1);
+    expect(servePerformance(ctxs, { ...all, sides: ['ad'] }).all.points).toBe(2);
+    expect(servePerformance(ctxs, all).none.points).toBe(5);
+    const impact = serveImpactStats(ctxs, all);
+    expect(impact.ace).toEqual({ points: 1, won: 1 });
+    expect(impact.double_fault).toEqual({ points: 1, won: 0 });
+    expect(impact.return_winner).toEqual({ points: 1, won: 0 });
+    expect(impact.serve_plus_one).toEqual({ points: 1, won: 1 });
+    expect(impact.neutralised).toEqual({ points: 1, won: 1 });
+    expect(impact.unknown).toEqual({ points: 0, won: 0 });
+  });
+
+  it('counts UE in Serve advantage and server UE in Return advantage', () => {
+    const pts = [
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { impact: 'serve_advantage' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { impact: 'serve_disadvantage' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { impact: 'serve_disadvantage' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner')),
+    ];
+    const c = pointContexts(match, pts);
+    expect(servePerformance(c, all).all).toMatchObject({ points: 4, ueInAdvantage: 1, wonDueToServe: 0, lostDueToServe: 1 });
+    expect(serveImpactStats(c, all).serve_disadvantage).toEqual({ points: 2, won: 1 });
+    expect(serveImpactStats(c, all).unknown).toEqual({ points: 1, won: 1 });
+  });
+
+  it('breaks faults down by location and fault type', () => {
+    const faults = serveFaults(ctxs, all);
+    expect([faults.wide.long, faults.body.net, faults.none.none, faults.t.net]).toEqual([1, 1, 1, 0]);
+    expect(serveFaults(ctxs, { ...all, attempts: [2] }).body.net).toBe(1);
+    expect(serveFaults(ctxs, { ...all, attempts: [2] }).wide.long).toBe(0);
+  });
+
+  it('counts held games, break points saved and location repeats', () => {
+    // Game 2: B serves, saves one of two break points and is broken; game 3: A serves two points, unfinished.
+    const later = [...points, ...(['A', 'A', 'A', 'B', 'A'] as Side[]).map((w) => point('B', w, 'unrecorded', [])),
+      point('A', 'A', 'rally', [serve('in', { location: 'wide' })], rally('server_winner', { impact: 'serve_advantage' })),
+      point('A', 'A', 'ace', [serve('ace', { location: 't' })])];
+    const c = pointContexts(match, later);
+    expect(serviceGamesHeld(match, c, all)).toEqual({ held: 1, played: 1 });
+    expect(serviceGamesHeld(match, c, { ...all, server: 'B' })).toEqual({ held: 0, played: 1 });
+    expect(serviceGamesHeld(match, pointContexts(match, points.slice(0, 5)), all)).toEqual({ held: 0, played: 0 });
+    expect(breakPointsSaved(c, { ...all, server: 'B' })).toEqual({ saved: 1, faced: 2 });
+    expect(breakPointsSaved(c, { ...all, server: 'B', sides: ['deuce'] })).toEqual({ saved: 0, faced: 1 });
+    // Deuce 1st: T -> Wide, then Not recorded breaks the chain; Ad 1st: Wide -> T -> T.
+    expect(locationRepeats(c, all)).toEqual({ repeats: 1, compared: 3 });
+    expect(locationRepeats(c, { ...all, sides: ['ad'] })).toEqual({ repeats: 1, compared: 2 });
+    expect(locationRepeats(c, { ...all, attempts: [2] })).toEqual({ repeats: 0, compared: 0 });
+  });
+
+  it('selects tiebreak points only through the Tiebreak key point', () => {
+    const mtb: Match = { ...match, rules: { ...DEFAULT_RULES, bestOf: 1, finalSet: 'matchTiebreak' } };
+    const c = pointContexts(mtb, [point('A', 'A', 'ace', [serve('ace')]), point('B', 'B', 'ace', [serve('ace')])]);
+    expect(servePerformance(c, { ...all, keyPoints: ['tiebreak'] }).all.points).toBe(1);
+    expect(servePerformance(c, { ...all, keyPoints: ['first', 'game', 'break'] }).all.points).toBe(0);
+    expect(serviceGamesHeld(mtb, c, all)).toEqual({ held: 0, played: 0 });
   });
 });

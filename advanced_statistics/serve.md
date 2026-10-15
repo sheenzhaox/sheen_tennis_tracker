@@ -25,9 +25,128 @@ Record ideas and definitions for analysing serve performance from recorded match
 
 ## Metric Definitions
 
+### Serve Statistics Section Plan
+
+**Proposed by the user 2026-10-15; agreed the same day after clarification (answers below); implemented 2026-10-15, not deployed (see [Implementation and Validation](#implementation-and-validation)).** Three tables for the Advanced Analysis Serve Statistics section of one completed match: Serve location distribution, Serve performance and Serve impact, plus the agreed extra metrics. This revises the 2026-10-14 [Serve Location Distribution](#serve-location-distribution) requirement: it adds a Set filter and serve-type columns, keeps the Key points filter, and replaces the Outcome filter with the separate Serve impact table.
+
+#### Shared Filters (agreed)
+
+| Filter | Choices | Logic | Data source |
+| --- | --- | --- | --- |
+| Set | Each set of the match | One or none; none selected = all sets (revised 2026-10-15) | Replayed score (existing `setOptions` / `filterSets`) |
+| Player | Player 1 / Player 2 (actual names) | Exactly one, as server | `Point.server` |
+| Court side | Deuce / Ad | One or none; none selected = both | `PointContext.side` |
+| Serve attempt | 1st / 2nd | One or none; none selected = both | Index in `Point.serves[]` |
+| Key points | First point / Game points / Break points / Tiebreak | One or none; none selected = all points (revised 2026-10-15) | Replayed pre-point score (`situationsOf`); see [Key-Point Definitions](#key-point-definitions) |
+| Serve location (performance and impact tables) | Wide / Body / T | One or none; none selected = all | `serves[].location` of the attributed attempt |
+
+Different filters combine with AND. **Revised 2026-10-15 (user):** no filter allows multiple choices; tapping the selected choice clears it. This supersedes the earlier multi-select Set and Key points decisions.
+
+#### Table 1: Serve Location Distribution (agreed)
+
+- Rows: serve location Wide, Body, T, Not recorded.
+- Columns: Total count and %; then count and % for each serve type Flat, Slice, Kick, Type not recorded. Source: `serves[].type`.
+- Unit: serve attempts including faults; with both attempts selected, a point with a first fault contributes two attempts. The serve-location filter does not apply (location is the row).
+- **Percentage basis (agreed):** column share, count / that column's total, so each column sums to 100% and shows where that serve type goes. Empty column shows `-`.
+
+#### Table 2: Serve Performance (agreed)
+
+- Unit: service points of the selected server, excluding Lucky balls and unrecorded points.
+- **Attempt attribution (agreed):** each point belongs to its last serve attempt (the serve that started play, or the second fault of a double fault). 1st serve = points where the first serve went in; 2nd serve = points played on a second serve, including double faults; the location filter uses that attempt's location (Wide / Body / T). First-serve faults themselves do not appear in this table.
+
+| Row | Colour | Agreed definition | Notes |
+| --- | --- | --- | --- |
+| Serve winners | Green | Ace + return error | Same as the agreed Serve winner filter. |
+| Serve + 1 | Green | Serve + 1 points | `rally.impact: 'serve_plus_one'` (or legacy mapping). |
+| Win due to serve | Green | Ace + return error + Serve + 1 + server winners in Serve advantage + receiver UEs in Serve advantage | Equals the agreed [Serve advantage statistic](statistics_design.md#serve-advantage-statistic). |
+| UE during Serve advantage | Red | Server UEs in Serve advantage points | Initiative lost by the server's own error. |
+| Double faults | Red | Double faults | Only under 2nd serve with the agreed attribution. |
+| Lost due to serve | Red | Double fault + return winner + receiver winners in Return advantage + server UEs in Return advantage | Equals the agreed [Serve disadvantage statistic](statistics_design.md#serve-disadvantage-statistic). |
+| Serve score | Green > 0, red < 0, blue = 0 | Win due to serve - Lost due to serve | Shown as a count and per 100 filtered service points (agreed). |
+
+Each row shows count and % of the filtered service points $N$, with $N$ shown; Serve score per 100 = $100 \times \text{score} / N$, `-` when $N = 0$. Rows overlap (Serve winners and Serve + 1 are inside Win due to serve; Double faults inside Lost due to serve), so they must not be summed.
+
+Example: $N = 40$, Win due to serve 14, Lost due to serve 9 gives Serve score +5 (green), +12.5 per 100 service points.
+
+#### Table 3: Serve Impact (agreed)
+
+Replaces the 2026-10-14 Outcome filter (user decision): instead of filtering the location table by outcome, show how service points split by Serve Impact State. Same filters and attribution as Table 2.
+
+| Row | Points | % of $N$ | Won by server | Won % |
+| --- | --- | --- | --- | --- |
+| Direct ending (subtotal) | | | | |
+| - Ace | | | | |
+| - Return error | | | | |
+| - Double fault | | | | |
+| - Return winner | | | | |
+| Serve + 1 | | | | |
+| Serve advantage | | | | |
+| Return advantage | | | | |
+| Neutralised | | | | |
+| State not recorded | | | | |
+
+- **Agreed 2026-10-15:** Direct ending is kept as a subtotal row and also split into its four endings (indented sub-rows). Ace and return error are always won (100%), double fault and return winner always lost (0%).
+- Top-level rows (Direct ending, Serve + 1, Serve advantage, Return advantage, Neutralised, State not recorded) are mutually exclusive and sum to $N$; the four sub-rows sum to Direct ending and must not be added to it again. Source: `end`, then `rally.impact` (else legacy mapping).
+- **Advantage conversion %** (agreed extra) is the Serve advantage row's Won %: (server winners + receiver UEs in Serve advantage) / Serve advantage points. Serve + 1 points are a separate row (always won).
+- **Neutralised points won %** (agreed extra) is the Neutralised row's Won %; compare with the serve-related rows.
+
+#### Decisions (2026-10-15, user answers)
+
+1. Court side: none selected = both sides (sometimes the side does not matter).
+2. Win due to serve includes receiver UEs in Serve advantage; Lost due to serve includes server UEs in Return advantage. Both now equal the agreed Serve advantage / Serve disadvantage statistics.
+3. Attempt attribution: last attempt, as above.
+4. Table 1: column-share percentages; Not recorded location row and type column shown.
+5. Key points filter added; the Outcome filter becomes the new Serve impact table.
+6. Serve score: count and per 100 service points.
+7. Scope: one completed match first; cross-match player stats may follow later (pool counts, do not average percentages).
+8. Key points filter: multi-select; none selected = all points. **Superseded 2026-10-15:** one or none (see Shared Filters).
+9. Location predictability: compare a serve only with the previous serve on the same side (Deuce or Ad). The chain runs within the selected set, or continuously across all sets when none is selected.
+10. Key points gains a Tiebreak option: every point of a tiebreak or match tiebreak. First point / Game points / Break points keep the existing regular-game-only meaning (`situationsOf` excludes tiebreaks), so tiebreak points are reached through the Tiebreak option or with no key point selected.
+11. Table 3: Direct ending stays as a subtotal row and is also split into Ace / Return error / Double fault / Return winner.
+
+#### Remaining Open Points
+
+None for the design. Implementation details (layout, colours of Table 3) follow existing Advanced Analysis styling.
+
+#### Agreed Extra Metrics (2026-10-15)
+
+Selected by the user from the suggestions. Formulas and filter applicability are proposed.
+
+| Metric | Formula (proposed) | Fields | Filters that apply |
+| --- | --- | --- | --- |
+| Advantage conversion % | (Server winners + receiver UEs in Serve advantage) / Serve advantage points | `rally.impact`, `rally.ending` | All Table 2 filters; shown in Table 3 |
+| Neutralised points won % | Server wins / Neutralised service points | `rally.impact`, `winner` | All Table 2 filters; shown in Table 3 |
+| Fault breakdown | Net / Long / Wide / Not recorded fault counts by location (rows); % = share of all faults shown | `serves[].fault`, `serves[].location` | Set, Player, Court side, Key points, Serve attempt (revised at implementation: the attempt filter replaces separate 1st / 2nd columns to keep the table narrow on phones); unit = fault attempts |
+| Performance by serve type | Table 2 split into Flat / Slice / Kick / Type not recorded columns | `serves[].type` of the attributed attempt | All Table 2 filters |
+| Pressure serving | Key points filter applied to Tables 2-3, plus Break points saved % = break points won by server / break points faced | `situationsOf`, `winner` | Set, Player, Court side; no attempt/location filter for saved %. Manual and Lucky ball points count (only the winner is needed) |
+| Service games held % | Completed service games won / completed service games | Replayed score | Set, Player only; unfinished games excluded |
+| Location predictability | Share of serves whose location repeats the server's previous serve on the same court side (Deuce compared only with Deuce, Ad only with Ad) and the same attempt number | Ordered points, `serves[].location` | Set, Player, Court side, Serve attempt. Chain continuity follows the Set filter (agreed): the selected set only, or continuous across the whole match when none is selected. Not recorded breaks the chain |
+
+Not selected: 1st / 2nd serve in %, 1st / 2nd serve points won %, Return-advantage recovery % (remain ideas). The Serve impact distribution became Table 3.
+
+#### Suggested Additional Serve Statistics
+
+**Assistant suggestions 2026-10-15; the user selected seven (see [Agreed Extra Metrics](#agreed-extra-metrics-2026-10-15)).** All use already recorded fields.
+
+| Metric | Formula | Fields | Why it helps |
+| --- | --- | --- | --- |
+| 1st / 2nd serve in % | Serves in (incl. ace / return outcomes) / attempts of that number | `serves[].result` | Consistency baseline; context for the performance rows. |
+| 1st / 2nd serve points won % | Points won / points played on that serve | `winner`, attribution above | Standard comparison; shows total effect, not only serve-decided points. |
+| Serve Impact distribution | Share of service points by Direct ending / Serve + 1 / Serve advantage / Return advantage / Neutralised / Unknown | `end`, `rally.impact` | How often the serve creates, loses or does not affect the initiative. |
+| Advantage conversion % | (Server winners + receiver UEs in Serve advantage) / Serve advantage points | `rally.impact`, `rally.ending` | Whether the server finishes points once ahead. |
+| Return-advantage recovery % | Points won by the server in Return advantage / Return advantage points | same | Defence after a weak serve. |
+| Neutralised points won % | Server wins / Neutralised service points | same | Contrast serve-phase vs neutral rally strength. |
+| Fault breakdown | Net / Long / Wide counts by attempt and location | `serves[].fault`, `serves[].location` | Which miss dominates and where. |
+| Performance by serve type | Table 2 split by Flat / Slice / Kick | `serves[].type` | Which serve type earns the most. |
+| Pressure serving | Table 2 on break points / game points; break points saved % | Replayed score (`situationsOf`) | Serving under pressure; reuses the 2026-10-14 key-point design. |
+| Service games held % | Service games won / service games | Replayed score | Overall outcome of serving. |
+| Location predictability | Share of serves repeating the previous location on the same side and attempt | Ordered points | Whether the returner can read a pattern. |
+
+Limitations: one match gives small samples; Serve Impact State is the scorer's judgement; location and type are optional, so report Not recorded coverage.
+
 ### Serve Location Distribution
 
-**Agreed requirement, 2026-10-14; design only.** Show where a selected player serves, with both count and percentage for each serve location. This will belong in the Serve Statistics section of Advanced Analysis. Do not implement the page content yet; preserve the existing normal stats and General Statistics Summary.
+**Agreed requirement, 2026-10-14; design only.** **Revised 2026-10-15:** superseded where it differs by the [Serve Statistics Section Plan](#serve-statistics-section-plan) (Set filter and serve-type columns added, Outcome filter replaced by the Serve impact table, court side and attempt allow none = all). Counting unit, Not recorded handling and key-point definitions below still apply. Show where a selected player serves, with both count and percentage for each serve location. This will belong in the Serve Statistics section of Advanced Analysis. Do not implement the page content yet; preserve the existing normal stats and General Statistics Summary.
 
 The coaching question is: **Where does this player serve under the selected conditions?** This is a location distribution, not a serve-in rate or a point-win rate at each location.
 
@@ -74,7 +193,7 @@ Current scope is one completed match. No cross-match aggregation is requested. I
 - Game point: the server would win the current game by winning this point.
 - Break point: the receiver would win the current game by winning this point.
 - Under no-ad rules, the deciding point can be both game point and break point. These are overlapping conditions, not disjoint outcome categories. With the proposed single-choice control, it appears in either corresponding filtered view.
-- Existing `situationsOf` excludes tiebreaks and match tiebreaks from all three key-point tags. Propose retaining that behavior: they remain eligible under All key points, with court side derived by the score engine. Confirm this before implementation.
+- Existing `situationsOf` excludes tiebreaks and match tiebreaks from all three key-point tags. **Agreed 2026-10-15:** retain that behavior and add a separate Tiebreak key-point option covering every tiebreak and match-tiebreak point; court side is derived by the score engine.
 - Replay all prior points, including manual and Lucky ball points, before filtering the statistical sample; excluding them from a metric must not change the subsequent score context.
 
 #### Agreed Outcome Definitions
@@ -149,7 +268,16 @@ Before implementation, agree fault/attempt attribution, denominator, defaults/ca
 
 **2026-10-14 - Page structure implemented:** Advanced Analysis reserves a heading-only Serve Statistics section. General Statistics reuses the existing Summary serve ratios unchanged; see the [reused Summary contract](statistics_design.md#reused-summary-contract) for inputs, denominators and exclusions. No new advanced serve metric is implemented.
 
-**2026-10-15 - Serve Impact State implemented (not deployed):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count). Advanced Analysis Serve Statistics remains heading-only.
+**2026-10-15 - Serve Impact State implemented (not deployed):** the normal stats Forehand / backhand table's service-game rows now use the state: Serve +1 winners; Serve advantage (ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point; agreed 2026-10-15); Serve disadvantage (double fault, return ace, or receiver winner / server UE in a Serve disadvantage point; agreed 2026-10-15). Definitions, legacy mapping, references and validation are in [the general design](statistics_design.md#serve-impact-state-replaces-rally-count).
+
+**2026-10-15 - Serve Statistics section implemented (not deployed):** Advanced Analysis Serve Statistics implements the [section plan](#serve-statistics-section-plan).
+
+- Filters: Player (exactly one); Set, Court side, Serve attempt, Key points (First point / Game points / Break points / Tiebreak) each one or none, none = all; Serve location (one or none) sits above the performance table and applies to performance and impact only.
+- Tables: Location distribution (attempts, column share, plus a Serves total row); Serve performance (Total and serve-type columns, count and % of the column's service points, coloured rows, Serve score with per-100 value); Serve impact (Direct ending subtotal with four sub-rows, Points, % of $N$, Won, Won %); Faults (location x fault type, % of all faults shown); Serving summary (Service games held, Break points saved, Location repeats as n/d (%)).
+- Percentages show one decimal when needed; a zero denominator shows `-`.
+- Service games held counts completed regular games only; the last recorded game counts only when the replayed score shows it finished. Tiebreaks are not service games.
+- Code: `ServeFilters`, `serveDistribution`, `servePerformance`, `serveImpactStats`, `serveFaults`, `breakPointsSaved`, `serviceGamesHeld`, `locationRepeats`, `wonDueToServe`, `lostDueToServe` in [matchStats.ts](../src/stats/matchStats.ts); UI `ServeStatistics` in [AdvancedAnalysisPage.tsx](../src/ui/pages/AdvancedAnalysisPage.tsx). `strokeStats` now reuses `wonDueToServe` / `lostDueToServe` (no behaviour change).
+- Validation: "advanced serve statistics" tests in [matchStats.test.ts](../src/stats/matchStats.test.ts) (attempt counting, last-attempt attribution, each filter, UE in advantage states, unknown state, faults, held / unfinished games, break points saved, repeat chains, tiebreak key point) and render tests in [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx) and [StatsAnalysis.test.tsx](../src/ui/pages/StatsAnalysis.test.tsx). 221 tests and the build pass. Not yet checked in a browser or on real match data.
 
 The shared rules are agreed, not newly implemented here. Current rally entry does not enforce total counts starting at 3. Required future checks include aces and double faults at 1, return outcomes at 2 (including return error in the Serve winner filter), serve plus one at 3, the 6/7 boundary, and second-serve independence. A double fault is eligible for the serve-related phase without rally metadata. Resolve legacy rally counts before claiming complete phase coverage.
 
@@ -157,6 +285,13 @@ No implementation is introduced by this document. Add source/test references, wo
 
 ## Decision History
 
+- **2026-10-15 - Single-choice filters (user):** every Serve Statistics filter except Player allows one choice or none (none = all); Player requires exactly one. Supersedes multi-select Set and Key points. UI changed; calculations unchanged.
+- **2026-10-15 - Serve Statistics section implemented (not deployed):** see [Implementation and Validation](#implementation-and-validation). Fault breakdown applies the Serve attempt filter instead of separate attempt columns.
+- **2026-10-15 - Tiebreak key point and Table 3 rows agreed:** Key points adds a Tiebreak option (all tiebreak / match-tiebreak points); First / Game / Break points stay regular-game only. Table 3 keeps Direct ending as a subtotal and splits it into Ace / Return error / Double fault / Return winner. Design complete; not implemented.
+- **2026-10-15 - Key points and predictability agreed:** Key points filter is multi-select (none = all). Location predictability compares serves on the same side only; chain follows the Set filter (none selected = continuous across all sets). Not implemented.
+
+- **2026-10-15 - Serve Statistics section plan agreed:** filters Set / Player / Court side / Serve attempt / Key points (none selected = all, except Player) plus location for performance; Table 1 location x serve type with column-share %; Table 2 Serve performance with last-attempt attribution, Win / Lost due to serve equal to Serve advantage / disadvantage, Serve score as count and per 100; Table 3 Serve impact replaces the Outcome filter. Extras agreed: Advantage conversion %, Neutralised points won %, Fault breakdown, Performance by serve type, Pressure serving, Service games held %, Location predictability. Not implemented.
+- **2026-10-15 - Serve Statistics section plan proposed (user):** Serve location distribution (Set / Player / Deuce-Ad / 1st-2nd filters; location rows; total and serve-type columns) and Serve performance (plus location filter; Serve winners, Serve + 1, Win due to serve, UE during Serve advantage, Double faults, Lost due to serve, Serve score). Assistant added proposed attribution, percentage basis, open questions and additional metric suggestions. Under discussion; documentation only.
 - **2026-10-15 - Serve disadvantage agreed:** double fault, return ace, or receiver winner / server UE in a Serve disadvantage point. Replaces the before-shot-7 meaning for the outcome filter and the stats row. Outcome examples revised to the state.
 - **2026-10-15 - Serve advantage agreed:** ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point. Replaces the before-shot-7 meaning for the outcome filter and the stats row.
 - **2026-10-15 - Serve Impact State replaces rally count:** Recording and the service-game count rows switched to the four-state model. The serve-location advantage/disadvantage outcome filters need a count-free definition and distinct labels (proposal above, not agreed).

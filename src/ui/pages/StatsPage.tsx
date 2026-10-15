@@ -31,7 +31,7 @@ import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
 
-function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+export function Chips<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
   return (
     <div className="chips">
       {options.map((o) => (
@@ -56,7 +56,7 @@ function ToggleChips<T extends string>({ value, options, onChange }: { value: T 
   );
 }
 
-function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
+export function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
   return (
     <div className="stats-table-scroll" tabIndex={0} role="region" aria-label="Statistics table">
       <table className="stats-table">

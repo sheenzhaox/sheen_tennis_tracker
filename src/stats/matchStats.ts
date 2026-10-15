@@ -1,6 +1,6 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
-import type { Match, Point, Rules, ServeImpact, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
-import { RECORDED_SHOT_TYPES } from '../model/types';
+import type { Match, Point, ReturnError, Rules, ServeImpact, ServeLocation, ServeType, ShotDirection, ShotType, Side } from '../model/types';
+import { RECORDED_SHOT_TYPES, rallyWonByServer } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
@@ -203,6 +203,19 @@ export function serveImpact(p: Point): KnownServeImpact | null {
   return ending.startsWith('server') ? 'serve_advantage' : 'serve_disadvantage';
 }
 
+/** Serve advantage: ace, return error, Serve + 1, or server winner / receiver UE in a Serve advantage point. */
+export function wonDueToServe(p: Point): boolean {
+  if (p.end === 'ace' || p.end === 'return_error') return true;
+  const impact = serveImpact(p);
+  return impact === 'serve_plus_one' || (impact === 'serve_advantage' && rallyWonByServer(p.rally!.ending));
+}
+
+/** Serve disadvantage: double fault, return ace, or receiver winner / server UE in a Return advantage point. */
+export function lostDueToServe(p: Point): boolean {
+  if (p.end === 'double_fault' || p.end === 'return_winner') return true;
+  return serveImpact(p) === 'serve_disadvantage' && !rallyWonByServer(p.rally!.ending);
+}
+
 /** Direct serve/return endings are serve-phase; rallies follow their Serve Impact State. */
 export function pointPhase(p: Point): 'serve' | 'neutralised' | null {
   if (p.end === 'ace' || p.end === 'double_fault' || p.end === 'return_winner' || p.end === 'return_error') return 'serve';
@@ -252,11 +265,8 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
     return { label, total: hits.length, forehand: strokes ? count('forehand') : null, backhand: strokes ? count('backhand') : null };
   };
   const mine = (winner: boolean) => (e: Ending) => e.by === player && e.winner === winner;
-  // Receiver winner or server UE: the receiver gained from the disadvantage.
-  const serveDisadvantage = (e: Ending) => e.point.end === 'double_fault' || e.point.end === 'return_winner'
-    || (e.impact === 'serve_disadvantage' && e.winner !== (e.by === e.point.server));
-  const serveAdvantage = (e: Ending) => e.point.end === 'ace' || e.point.end === 'return_error' || e.impact === 'serve_plus_one'
-    || (e.impact === 'serve_advantage' && (mine(true)(e) || (e.by === opp && !e.winner)));
+  const serveDisadvantage = (e: Ending) => lostDueToServe(e.point);
+  const serveAdvantage = (e: Ending) => wonDueToServe(e.point);
 
   if (games === 'serve') {
     return [
@@ -283,6 +293,158 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
     row('Neutralised winners', (e) => mine(true)(e) && e.phase === 'neutralised'),
     row('Neutralised UE', (e) => mine(false)(e) && e.phase === 'neutralised'),
   ];
+}
+
+export type KeyPoint = Situation | 'tiebreak';
+
+/** Advanced Analysis serve filters; an empty list means no restriction. */
+export interface ServeFilters {
+  server: Side;
+  sets: number[];
+  sides: ('deuce' | 'ad')[];
+  attempts: number[];
+  keyPoints: KeyPoint[];
+  locations: ServeLocation[];
+}
+
+const SERVE_TYPE_KEYS: ServeType[] = ['flat', 'slice', 'kick', 'none'];
+const chosen = <T>(list: T[], value: T) => list.length === 0 || list.includes(value);
+const isKeyPoint = (c: PointContext, keys: KeyPoint[]) =>
+  keys.length === 0 || keys.some((k) => (k === 'tiebreak' ? c.before.inTiebreak : c.situations.has(k)));
+
+/** The server's recorded points (no Lucky balls / manual points) in the selected sets, sides and key points. */
+function recordedServes(ctxs: PointContext[], f: ServeFilters): PointContext[] {
+  return filterSets(ctxs, f.sets).filter((c) => c.point.server === f.server && c.point.serves.length > 0
+    && c.point.end !== 'unrecorded' && !isLuckyBall(c.point) && chosen(f.sides, c.side) && isKeyPoint(c, f.keyPoints));
+}
+
+/** Service points attributed to their last serve attempt, filtered by that attempt's number and location. */
+function servicePoints(ctxs: PointContext[], f: ServeFilters): Point[] {
+  return recordedServes(ctxs, f).map((c) => c.point)
+    .filter((p) => chosen(f.attempts, p.serves.length) && chosen(f.locations, p.serves.at(-1)!.location));
+}
+
+export type LocationTypeCounts = Record<ServeLocation, Record<ServeType, number>>;
+
+/** Serve attempts (faults included) by location and serve type. The location filter does not apply. */
+export function serveDistribution(ctxs: PointContext[], f: ServeFilters): LocationTypeCounts {
+  const out = Object.fromEntries(LOCATIONS.map((l) => [l, Object.fromEntries(SERVE_TYPE_KEYS.map((t) => [t, 0]))])) as LocationTypeCounts;
+  for (const { point: p } of recordedServes(ctxs, f)) {
+    p.serves.forEach((s, i) => {
+      if (chosen(f.attempts, i + 1)) out[s.location][s.type]++;
+    });
+  }
+  return out;
+}
+
+export interface ServePerformance {
+  points: number;
+  serveWinners: number;
+  servePlusOne: number;
+  wonDueToServe: number;
+  ueInAdvantage: number;
+  doubleFaults: number;
+  lostDueToServe: number;
+}
+
+/** Serve performance in total and by the serve type of the attributed (last) attempt. */
+export function servePerformance(ctxs: PointContext[], f: ServeFilters): Record<ServeType | 'all', ServePerformance> {
+  const empty = (): ServePerformance => ({
+    points: 0, serveWinners: 0, servePlusOne: 0, wonDueToServe: 0, ueInAdvantage: 0, doubleFaults: 0, lostDueToServe: 0,
+  });
+  const out = Object.fromEntries((['all', ...SERVE_TYPE_KEYS] as const).map((t) => [t, empty()])) as Record<ServeType | 'all', ServePerformance>;
+  for (const p of servicePoints(ctxs, f)) {
+    const impact = serveImpact(p);
+    for (const row of [out.all, out[p.serves.at(-1)!.type]]) {
+      row.points++;
+      if (p.end === 'ace' || p.end === 'return_error') row.serveWinners++;
+      if (impact === 'serve_plus_one') row.servePlusOne++;
+      if (wonDueToServe(p)) row.wonDueToServe++;
+      if (impact === 'serve_advantage' && p.rally!.ending === 'server_error') row.ueInAdvantage++;
+      if (p.end === 'double_fault') row.doubleFaults++;
+      if (lostDueToServe(p)) row.lostDueToServe++;
+    }
+  }
+  return out;
+}
+
+export type ImpactRow = 'ace' | 'return_error' | 'double_fault' | 'return_winner' | KnownServeImpact | 'unknown';
+
+/** Service points split into mutually exclusive endings / Serve Impact States, with points won by the server. */
+export function serveImpactStats(ctxs: PointContext[], f: ServeFilters): Record<ImpactRow, { points: number; won: number }> {
+  const rows: ImpactRow[] = ['ace', 'return_error', 'double_fault', 'return_winner',
+    'serve_plus_one', 'serve_advantage', 'serve_disadvantage', 'neutralised', 'unknown'];
+  const out = Object.fromEntries(rows.map((r) => [r, { points: 0, won: 0 }])) as Record<ImpactRow, { points: number; won: number }>;
+  for (const p of servicePoints(ctxs, f)) {
+    const row: ImpactRow = p.end === 'rally' ? serveImpact(p) ?? 'unknown' : p.end as ImpactRow;
+    out[row].points++;
+    if (p.winner === p.server) out[row].won++;
+  }
+  return out;
+}
+
+/** Serve faults by location and fault type. The location filter does not apply. */
+export function serveFaults(ctxs: PointContext[], f: ServeFilters): Record<ServeLocation, Record<ReturnError, number>> {
+  const out = Object.fromEntries(LOCATIONS.map((l) => [l, { net: 0, long: 0, wide: 0, none: 0 }])) as Record<ServeLocation, Record<ReturnError, number>>;
+  for (const { point: p } of recordedServes(ctxs, f)) {
+    p.serves.forEach((s, i) => {
+      if (s.result === 'fault' && chosen(f.attempts, i + 1)) out[s.location][s.fault ?? 'none']++;
+    });
+  }
+  return out;
+}
+
+/** Break points faced and won by the server (Set, Player and Court side filters only). */
+export function breakPointsSaved(ctxs: PointContext[], f: ServeFilters): { saved: number; faced: number } {
+  const faced = filterSets(ctxs, f.sets)
+    .filter((c) => c.point.server === f.server && chosen(f.sides, c.side) && c.situations.has('break'));
+  return { saved: faced.filter((c) => c.point.winner === f.server).length, faced: faced.length };
+}
+
+/** Completed regular service games won by the server (Set and Player filters only); tiebreaks are not service games. */
+export function serviceGamesHeld(match: Match, ctxs: PointContext[], f: ServeFilters): { held: number; played: number } {
+  const after = computeScore(match.rules, match.firstServer ?? 'A', ctxs.map((c) => c.point.winner));
+  // The last recorded game counts only if it was played out (e.g. not interrupted by a retirement).
+  const lastGameOver = after.points.a + after.points.b === 0;
+  const gameKey = (c: PointContext) => `${c.set}:${c.before.games.a + c.before.games.b}:${c.before.inTiebreak}`;
+  let held = 0;
+  let played = 0;
+  ctxs.forEach((c, i) => {
+    const next = ctxs[i + 1];
+    const gameOver = next ? gameKey(next) !== gameKey(c) : lastGameOver;
+    if (!gameOver || c.before.inTiebreak || c.point.server !== f.server || !chosen(f.sets, c.set)) return;
+    played++;
+    if (c.point.winner === f.server) held++;
+  });
+  return { held, played };
+}
+
+/**
+ * Serves whose location repeats the server's previous serve on the same court side and attempt number.
+ * The chain runs through the selected sets in match order; Not recorded breaks it.
+ */
+export function locationRepeats(ctxs: PointContext[], f: ServeFilters): { repeats: number; compared: number } {
+  const last = new Map<string, ServeLocation>();
+  let repeats = 0;
+  let compared = 0;
+  for (const { point: p, side } of filterSets(ctxs, f.sets)) {
+    if (p.server !== f.server || p.end === 'unrecorded' || isLuckyBall(p) || !chosen(f.sides, side)) continue;
+    p.serves.forEach((s, i) => {
+      if (!chosen(f.attempts, i + 1)) return;
+      const key = `${side}:${i + 1}`;
+      const previous = last.get(key);
+      if (s.location === 'none') {
+        last.delete(key);
+        return;
+      }
+      if (previous) {
+        compared++;
+        if (previous === s.location) repeats++;
+      }
+      last.set(key, s.location);
+    });
+  }
+  return { repeats, compared };
 }
 
 export type ShotTypeStats = PerSide<Record<ShotType, WinnerErrorCount>>;

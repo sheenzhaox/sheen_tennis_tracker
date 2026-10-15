@@ -130,9 +130,12 @@ describe('analytics route wiring', () => {
     expect(headings).toEqual(['Match Information', 'General Statistics', 'Serve Statistics', 'Return Statistics',
       'Winner Statistics', 'Unforced Error Statistics', 'Other Key Factors Statistics']);
     for (const value of ['Alice vs bob', 'Court 2', 'Club championship', 'Final', 'Match note', 'retired']) expect(html).toContain(value);
-    expect(html.match(/<table /g)).toHaveLength(1);
-    expect(html).not.toContain('Serve location');
-    expect(html).not.toContain('Shot type');
+    expect(html.match(/<table /g)).toHaveLength(6);
+    for (const value of ['Location distribution', 'Serve performance', 'Serve impact', 'Faults', 'Serving summary', 'Tiebreak']) {
+      expect(html).toContain(value);
+    }
+    expect(html).not.toContain('<h2>Serve location</h2>');
+    expect(html).not.toContain('<h2>Shot type</h2>');
     expect(html).not.toContain('Public stats link');
   });
 
