@@ -1,9 +1,10 @@
 :root {
-  --green: #1b5e20;
-  --green-light: #e8f5e9;
-  --border: #d0d7d0;
-  --muted: #667066;
+  --green: #043065;
+  --green-light: #e6f0fa;
+  --border: #d3dce8;
+  --muted: #5a6a80;
   --danger: #c62828;
+  --ball: #c3e21f;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 17px;
   color: #1a1a1a;
@@ -57,7 +58,8 @@ h2 {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   z-index: 1;
 }
@@ -89,6 +91,52 @@ h2 {
   padding: 1rem;
   max-width: 40rem;
   margin: 0 auto;
+}
+
+.advanced-analysis-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.advanced-analysis {
+  overflow-wrap: anywhere;
+}
+
+.header:has(+ .advanced-analysis) h1 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.advanced-analysis h2 {
+  letter-spacing: 0;
+}
+
+.advanced-analysis section + section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.analysis-match-info {
+  display: grid;
+  grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr);
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.analysis-match-info dt {
+  color: var(--muted);
+}
+
+.analysis-match-info dd {
+  margin: 0;
+}
+
+.analysis-notes {
+  white-space: pre-wrap;
 }
 
 .help-content {
@@ -171,6 +219,10 @@ h2 {
   color: var(--green);
 }
 
+.home-title img {
+  filter: drop-shadow(0 8px 16px rgba(4, 48, 101, 0.3));
+}
+
 .home-menu {
   display: flex;
   flex-direction: column;
@@ -200,6 +252,15 @@ h2 {
 
 .btn:active {
   filter: brightness(0.92);
+}
+
+.btn:focus-visible,
+.chip:focus-visible,
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible {
+  outline: 3px solid #00a8e0;
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -349,9 +410,14 @@ h2 {
   min-height: 2.75rem;
 }
 
+.stats-match-selection.scrollable {
+  max-height: calc(25rem + 6px);
+  overflow-y: auto;
+}
+
 .stats-match-selection label.checkbox {
   padding: 0.75rem;
-  min-height: 2.75rem;
+  min-height: 5rem;
 }
 
 .stats-match-selection input {
@@ -593,7 +659,8 @@ legend {
 .match-over {
   padding: 1rem;
   border-radius: 12px;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   text-align: center;
   font-size: 1.15rem;

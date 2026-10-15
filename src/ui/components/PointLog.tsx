@@ -4,6 +4,8 @@ import { Download } from 'lucide-react';
 import { computeScore, pointLabels } from '../../engine/score';
 import { pointsForMatch } from '../../storage/db';
 import {
+  INCOMING_BALLS,
+  INCOMING_DIRECTIONS,
   RETURN_DIRECTIONS,
   RECORDED_SHOT_TYPES,
   RETURN_ERRORS,
@@ -47,6 +49,8 @@ function describeServe(s: Serve, n: number): string {
 function describeRally(r: RallyDetail, serverName: string, returnerName: string): string {
   const who = r.ending.startsWith('server') ? serverName : returnerName;
   const how = r.ending.endsWith('winner') ? 'winner & forced error' : 'unforced error';
+  const incomingBall = INCOMING_BALLS.filter((option) => r.incomingBall?.includes(option.value)).map((option) => option.label).join(' / ');
+  const incomingDirection = label(INCOMING_DIRECTIONS, r.incomingDirection);
   const parts = [
     `Rally ${r.count ?? 'None'}`,
     `${who} ${how}`,
@@ -56,6 +60,8 @@ function describeRally(r: RallyDetail, serverName: string, returnerName: string)
     label(SHOT_DIRECTIONS, r.direction),
     label(RECORDED_SHOT_TYPES, r.shotType),
     label(SHOT_POSITIONS, r.position),
+    incomingBall ? `Incoming ball: ${incomingBall}` : undefined,
+    incomingDirection ? `Incoming direction: ${incomingDirection}` : undefined,
   ];
   return parts.filter(Boolean).join(', ');
 }

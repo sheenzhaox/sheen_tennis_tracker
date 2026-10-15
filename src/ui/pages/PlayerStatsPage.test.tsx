@@ -127,6 +127,21 @@ describe('player stats presentation and access', () => {
     expect(html).toContain('selected completed matches');
     expect(html).not.toContain('scheduled and partial');
     expect(html).not.toContain('Create link');
+    expect(html).not.toContain('Opponents (combined)');
+    expect(html).toContain('<th>Linked Player</th>');
+    expect(html).not.toContain('>Linked Player</button>');
+    expect(html).toContain('<th>Net</th><th>Long</th><th>Wide</th><th>Total</th>');
+  });
+
+  it.each([0, 5, 6, 20])('bounds the custom list only above five matches (%s matches)', (count) => {
+    const html = renderToStaticMarkup(<PlayerStatsControls player={player}
+      matches={Array.from({ length: count }, (_, index) => match(String(index)))}
+      names={new Map([['opponent', 'Opponent']])} period="custom" customIds={['0']}
+      onPeriodChange={() => {}} onCustomChange={() => {}} />);
+    expect(html.includes('stats-match-selection scrollable')).toBe(count > 5);
+    expect(html.includes('tabindex="0"')).toBe(count > 5);
+    expect(html.match(/type="checkbox"/g) ?? []).toHaveLength(count);
+    expect(html).toContain('Completed matches to include');
   });
 
   it('rejects private or unrelated System Players before fetching any matches or points', async () => {

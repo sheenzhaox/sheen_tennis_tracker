@@ -22,7 +22,7 @@ export default function HomePage() {
   return (
     <main className="home">
       <div className="home-title">
-        <img src="/logo.svg" alt="" width={72} height={72} />
+        <img src="/logo-192.png" alt="" width={96} height={96} />
         <h1>Sheen Tennis Tracker</h1>
       </div>
       <nav className="home-menu">

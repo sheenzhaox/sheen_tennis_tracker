@@ -30,14 +30,30 @@ describe('user directory search', () => {
     expect(userSearchResults(users, 'missing')).toEqual([]);
   });
 
-  it('has an accessible search field above the directory and includes name/email when creating accounts', () => {
+  it('offers a header New user link above search without a creation form below the directory', () => {
     const html = renderToStaticMarkup(<UserContext value={users[2]}><UsersPage /></UserContext>);
     expect(html).toContain('type="search"');
     expect(html).toContain('aria-describedby="user-search-hint"');
-    expect(html.indexOf('Search users')).toBeLessThan(html.indexOf('New user'));
+    expect(html).toContain('href="#/users/new" aria-label="New user" title="New user"');
+    expect(html.indexOf('New user')).toBeLessThan(html.indexOf('Search users'));
+    expect(html).not.toContain('Create user');
+    expect(html).not.toContain('Initial password');
+    expect(html).not.toContain('Reset password');
+  });
+
+  it('opens a dedicated creation screen with the existing fields and a return to Users', () => {
+    const html = renderToStaticMarkup(<UserContext value={users[2]}><UsersPage id="new" /></UserContext>);
+    expect(html).toContain('<h1>New user</h1>');
+    expect(html).toContain('href="#/users" aria-label="Back"');
     expect(html).toContain('Name (optional)');
     expect(html).toContain('Email (optional)');
     expect(html).toContain('type="email"');
+    expect(html).toContain('Initial password');
+    expect(html).toContain('Linked system player');
+    expect(html).toContain('<option value="__new_system_player__">New system player...</option>');
+    expect(html).not.toContain('Player name *');
+    expect(html).toContain('Create user');
+    expect(html).not.toContain('Search users');
     expect(html).not.toContain('Reset password');
   });
 });

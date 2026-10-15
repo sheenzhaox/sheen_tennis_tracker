@@ -102,6 +102,61 @@ describe('analytics route wiring', () => {
     state.liveResults = [match('shared', 'other'), []];
     expect(renderToStaticMarkup(<App />)).toContain('href="#/match/shared"');
   });
+
+  it.each(['scheduled', 'in_progress', 'completed', 'abandoned'] as const)('offers the bottom analysis link only for completed matches (%s)', (status) => {
+    state.segments = ['match', 'shared', 'stats'];
+    state.returnTo = '/stats/matches';
+    state.liveResults = [{ ...match('shared', 'other'), status }, []];
+    const html = renderToStaticMarkup(<App />);
+    expect(html.includes('> Advanced Analysis</a>')).toBe(status === 'completed');
+    if (status === 'completed') {
+      expect(html).toContain('href="#/match/shared/advanced-analysis?return=%2Fstats%2Fmatches"');
+      expect(html.indexOf('> Advanced Analysis</a>')).toBeGreaterThan(html.indexOf('Missing directions appear as Not set.'));
+      expect(html).toMatch(/Advanced Analysis<\/a><\/main>$/);
+    }
+    expect(html).toContain('<h2>Summary</h2>');
+  });
+
+  it.each(['user', 'coach', 'admin'] as const)('opens accessible completed-match analysis with stats return navigation for %s', (role) => {
+    state.user = actor(role);
+    state.segments = ['match', 'shared', 'advanced-analysis'];
+    state.returnTo = '/stats/matches';
+    state.liveResults = [{ ...match('shared', 'other'), venue: 'Court 2', event: 'Club championship',
+      round: 'Final', date: '2026-10-14', notes: 'Match note',
+      finalisation: { winner: 'A', reason: 'player_b_retired' } }, []];
+    const html = renderToStaticMarkup(<App />);
+    expect(html).toContain('href="#/match/shared/stats?return=%2Fstats%2Fmatches"');
+    const headings = [...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map((entry) => entry[1]);
+    expect(headings).toEqual(['Match Information', 'General Statistics', 'Serve Statistics', 'Return Statistics',
+      'Winner Statistics', 'Unforced Error Statistics', 'Other Key Factors Statistics']);
+    for (const value of ['Alice vs bob', 'Court 2', 'Club championship', 'Final', 'Match note', 'retired']) expect(html).toContain(value);
+    expect(html.match(/<table /g)).toHaveLength(1);
+    expect(html).not.toContain('Serve location');
+    expect(html).not.toContain('Shot type');
+    expect(html).not.toContain('Public stats link');
+  });
+
+  it.each(['scheduled', 'in_progress', 'abandoned'] as const)('guards direct analysis routes for %s matches', (status) => {
+    state.segments = ['match', 'shared', 'advanced-analysis'];
+    state.liveResults = [{ ...match('shared', 'other'), status }, []];
+    const html = renderToStaticMarkup(<App />);
+    expect(html).toContain('completed matches only');
+    expect(html).not.toContain('General Statistics');
+  });
+
+  it('handles missing/loading records and rejects an unsafe analysis return destination', () => {
+    state.segments = ['match', 'shared', 'advanced-analysis'];
+    state.returnTo = 'https://example.invalid';
+    state.liveResults = [undefined, undefined];
+    expect(renderToStaticMarkup(<App />)).toContain('Loading match...');
+    state.liveResults = [null, []];
+    const missing = renderToStaticMarkup(<App />);
+    expect(missing).toContain('Match not found.');
+    expect(missing).toContain('href="#/match/shared/stats"');
+    expect(missing).not.toContain('example.invalid');
+    state.liveResults = [match('shared', 'other'), undefined];
+    expect(renderToStaticMarkup(<App />)).toContain('Loading points...');
+  });
 });
 
 describe('Stats & Analysis entry points', () => {
