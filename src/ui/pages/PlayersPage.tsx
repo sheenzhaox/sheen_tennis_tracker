@@ -1,8 +1,9 @@
 import Header from '../components/Header';
-import { usePlayers } from '../hooks';
+import { useClubs, usePlayers } from '../hooks';
 
 export default function PlayersPage() {
   const players = usePlayers();
+  const clubs = useClubs() ?? [];
 
   return (
     <>
@@ -17,7 +18,8 @@ export default function PlayersPage() {
                 <a href={`#/players/${p.id}`}>
                   <strong>{p.name}</strong>
                   <span className="muted">
-                    {[p.handedness && `${p.handedness}-handed`, p.rating, p.club].filter(Boolean).join(' · ')}
+                    {[p.ownerId ? 'Private player' : 'System player', p.gender, p.rating,
+                      clubs.filter((club) => p.clubIds?.includes(club.id)).map((club) => club.name).join(', ')].filter(Boolean).join(' · ')}
                   </span>
                 </a>
               </li>

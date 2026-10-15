@@ -9,18 +9,20 @@ interface Props {
   /** Adds a missed (unrecorded) point for a player. */
   onAddPoint?: (side: Side) => void;
   addDisabled?: boolean;
+  finished?: boolean;
+  winner?: Side | null;
 }
 
-export default function ScoreTable({ score, noAd, nameA, nameB, onAddPoint, addDisabled }: Props) {
-  const live = !score.winner;
+export default function ScoreTable({ score, noAd, nameA, nameB, onAddPoint, addDisabled, finished = false, winner }: Props) {
+  const live = !finished && !score.winner;
   const labels = pointLabels(score, noAd);
-  const showCurrentSet = live && !score.isMatchTiebreak;
+  const showCurrentSet = !score.winner && !score.isMatchTiebreak;
 
   const row = (side: Side, name: string) => {
     const k = sideKey(side);
     const o = sideKey(side === 'A' ? 'B' : 'A');
     return (
-      <tr key={side} className={score.winner === side ? 'winner' : ''}>
+      <tr key={side} className={(winner ?? score.winner) === side ? 'winner' : ''}>
         <th scope="row">
           <span className={`serve-dot ${live && score.server === side ? 'on' : ''}`} aria-label={live && score.server === side ? 'serving' : undefined} />
           {name}
@@ -47,7 +49,7 @@ export default function ScoreTable({ score, noAd, nameA, nameB, onAddPoint, addD
           ),
         )}
         {showCurrentSet && <td className="current">{score.games[k]}</td>}
-        {live && <td className="points">{labels[k]}</td>}
+        {!score.winner && <td className="points">{labels[k]}</td>}
       </tr>
     );
   };
@@ -61,7 +63,7 @@ export default function ScoreTable({ score, noAd, nameA, nameB, onAddPoint, addD
             <th key={i}>{s.matchTiebreak ? 'MTB' : `S${i + 1}`}</th>
           ))}
           {showCurrentSet && <th>S{score.sets.length + 1}</th>}
-          {live && <th>{score.isMatchTiebreak ? 'MTB' : score.inTiebreak ? 'TB' : 'Pts'}</th>}
+          {!score.winner && <th>{score.isMatchTiebreak ? 'MTB' : score.inTiebreak ? 'TB' : 'Pts'}</th>}
         </tr>
       </thead>
       <tbody>

@@ -1,9 +1,10 @@
 :root {
-  --green: #1b5e20;
-  --green-light: #e8f5e9;
-  --border: #d0d7d0;
-  --muted: #667066;
+  --green: #043065;
+  --green-light: #e6f0fa;
+  --border: #d3dce8;
+  --muted: #5a6a80;
   --danger: #c62828;
+  --ball: #c3e21f;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 17px;
   color: #1a1a1a;
@@ -57,7 +58,8 @@ h2 {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   z-index: 1;
 }
@@ -91,7 +93,109 @@ h2 {
   margin: 0 auto;
 }
 
+.advanced-analysis-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.advanced-analysis {
+  overflow-wrap: anywhere;
+}
+
+.header:has(+ .advanced-analysis) h1 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.advanced-analysis h2 {
+  letter-spacing: 0;
+}
+
+.advanced-analysis section + section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.analysis-match-info {
+  display: grid;
+  grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr);
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.analysis-match-info dt {
+  color: var(--muted);
+}
+
+.analysis-match-info dd {
+  margin: 0;
+}
+
+.analysis-notes {
+  white-space: pre-wrap;
+}
+
+.help-content {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.help-content h2 {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.help-content ol,
+.help-content ul {
+  padding-left: 1.5rem;
+}
+
+.help-content li + li {
+  margin-top: 0.5rem;
+}
+
+.help-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.help-content th,
+.help-content td {
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
 /* Home */
+.stats-share {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.stats-share .form {
+  margin-top: 1rem;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.share-actions .btn {
+  flex: 1 1 12rem;
+}
+
+.stats-share .btn svg {
+  vertical-align: middle;
+}
+
 .home {
   min-height: 100dvh;
   display: flex;
@@ -113,6 +217,10 @@ h2 {
 .home-title h1 {
   font-size: 1.6rem;
   color: var(--green);
+}
+
+.home-title img {
+  filter: drop-shadow(0 8px 16px rgba(4, 48, 101, 0.3));
 }
 
 .home-menu {
@@ -144,6 +252,15 @@ h2 {
 
 .btn:active {
   filter: brightness(0.92);
+}
+
+.btn:focus-visible,
+.chip:focus-visible,
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible {
+  outline: 3px solid #00a8e0;
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -188,6 +305,69 @@ h2 {
   background: var(--green-light);
 }
 
+.user-directory a {
+  overflow-wrap: anywhere;
+}
+
+.match-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.match-list-item > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-list-item > a .muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+}
+
+.btn-compact {
+  width: auto;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.match-list-actions .btn-compact {
+  width: auto;
+  min-height: 2.75rem;
+}
+
+.match-list-actions:has(.form) {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.match-list-actions:has(.form) > .btn-compact {
+  align-self: flex-end;
+  width: auto;
+}
+
+.match-finalise .form {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.match-finalise p {
+  margin: 0;
+}
+
 /* Forms */
 .form {
   display: flex;
@@ -224,6 +404,33 @@ h2 {
 .form input[type='checkbox'] {
   width: 1.4rem;
   height: 1.4rem;
+}
+
+.player-stats-controls .chip {
+  min-height: 2.75rem;
+}
+
+.stats-match-selection.scrollable {
+  max-height: calc(25rem + 6px);
+  overflow-y: auto;
+}
+
+.stats-match-selection label.checkbox {
+  padding: 0.75rem;
+  min-height: 5rem;
+}
+
+.stats-match-selection input {
+  flex-shrink: 0;
+}
+
+.stats-match-selection label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stats-match-selection .muted {
+  display: block;
 }
 
 fieldset {
@@ -278,14 +485,46 @@ legend {
   font-weight: 600;
 }
 
-.inline-add {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 0.5rem;
+.club-picker {
+  min-width: 0;
 }
 
-.inline-add .btn {
-  width: auto;
+.club-picker label {
+  min-height: 2.75rem;
+  overflow-wrap: anywhere;
+}
+
+.player-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.player-suggestions button {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.7rem;
+  border: 0;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.player-suggestions button[aria-selected='true'] {
+  background: var(--green-light);
+}
+
+.player-suggestions button .small {
+  flex-shrink: 0;
 }
 
 .summary {
@@ -403,10 +642,25 @@ legend {
   margin: 0.75rem 0 1rem;
 }
 
+.point-note-entry {
+  margin: 0.75rem 0;
+}
+
+.point-note-entry > button {
+  align-self: flex-start;
+  min-height: 2.75rem;
+}
+
+.point-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .match-over {
   padding: 1rem;
   border-radius: 12px;
-  background: var(--green);
+  background: linear-gradient(135deg, #0a4a8f 0%, #043065 70%);
+  box-shadow: inset 0 -3px 0 var(--ball);
   color: #fff;
   text-align: center;
   font-size: 1.15rem;
@@ -565,6 +819,10 @@ legend {
   color: #fff;
 }
 
+.stats-table-scroll {
+  overflow-x: auto;
+}
+
 .stats-table {
   width: 100%;
   border-collapse: collapse;
@@ -637,6 +895,46 @@ legend {
 
 .score-dock .sync-badge {
   padding: 0 0.4rem;
+}
+
+/* Admin: users and match access */
+.user-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.club-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.club-section h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.club-players summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding: 0.7rem 0;
+}
+
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.user-actions .btn {
+  width: auto;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
 }
 
 /* Keep the last content above the docked score table. */

@@ -1,5 +1,19 @@
 export type Handedness = 'right' | 'left';
 export type Backhand = 'one-handed' | 'two-handed';
+export type UserRole = 'user' | 'coach' | 'admin';
+export type Gender = 'male' | 'female';
+export const GENDERS: { value: Gender; label: string }[] = [
+  { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' },
+];
+export const isPlayerEmail = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+export interface Club extends Syncable {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
 
 /** Fields used by cloud sync; deleted records are kept as tombstones so deletes propagate. */
 export interface Syncable {
@@ -10,11 +24,26 @@ export interface Syncable {
 export interface Player extends Syncable {
   id: string;
   name: string;
+  /** Name-only match players and legacy profiles can be completed later in Players. */
+  gender?: Gender;
+  email?: string;
   handedness?: Handedness;
   backhand?: Backhand;
   rating?: string;
   club?: string;
+  legacyClub?: string;
+  clubIds?: string[];
+  linkedUserId?: string;
+  createdById?: string;
+  /** A private opponent delivered only to resolve a visible match's name. */
+  referenceOnly?: boolean;
+  /** This viewer's private note, never part of the shared profile. */
   notes?: string;
+  notesUpdatedAt?: number;
+  /** Local sync marker for changing only this user's private note. */
+  notesOnly?: boolean;
+  /** Authoritative private owner; absent means system-level and visible to everyone. */
+  ownerId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -47,6 +76,13 @@ export interface RuleSet extends Syncable {
 export type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'abandoned';
 export type Surface = 'hard' | 'clay' | 'synthetic_grass' | 'grass';
 export type Side = 'A' | 'B';
+export type FinaliseReason = 'player_a_retired' | 'player_b_retired' | 'remaining_unrecorded';
+
+export const FINALISE_REASONS: { value: FinaliseReason; label: string }[] = [
+  { value: 'player_a_retired', label: 'Player 1 retired' },
+  { value: 'player_b_retired', label: 'Player 2 retired' },
+  { value: 'remaining_unrecorded', label: "Didn't record the remaining" },
+];
 
 export const SURFACES: { value: Surface; label: string }[] = [
   { value: 'hard', label: 'Hard' },
@@ -76,8 +112,12 @@ export interface Match extends Syncable {
   /** Timestamp when "Start match" was pressed. */
   startedAt?: number;
   finishedAt?: number;
+  finalisation?: { winner: Side; reason: FinaliseReason };
   createdAt?: number;
   updatedAt: number;
+  /** Set by the server: the user who recorded the match. Unset = created on this device, not synced yet. */
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export type ServeResult = 'ace' | 'fault' | 'in' | 'return_winner' | 'return_error';
@@ -110,8 +150,28 @@ export type PointEnd = 'ace' | 'double_fault' | 'return_winner' | 'return_error'
 export type RallyEnding = 'server_winner' | 'returner_winner' | 'server_error' | 'returner_error';
 export type Stroke = 'forehand' | 'backhand' | 'none';
 export type ShotDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'middle' | 'short_angle' | 'none';
-export type ShotType = 'topspin' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
+export type ShotType = 'topspin' | 'drive_volley' | 'slice' | 'volley' | 'smash' | 'lob' | 'dropshot' | 'none';
 export type ShotPosition = 'baseline' | 'approach' | 'net' | 'none';
+export type IncomingBall = 'slow' | 'fast' | 'heavy' | 'slice' | 'short' | 'deep';
+export type IncomingDirection = 'crosscourt' | 'down_the_line' | 'inside_out' | 'inside_in' | 'short_angle' | 'dropshot' | 'none';
+
+export const INCOMING_BALLS: { value: IncomingBall; label: string }[] = [
+  { value: 'slow', label: 'Slow' },
+  { value: 'fast', label: 'Fast' },
+  { value: 'heavy', label: 'Heavy' },
+  { value: 'slice', label: 'Slice' },
+  { value: 'short', label: 'Short' },
+  { value: 'deep', label: 'Deep' },
+];
+
+export const INCOMING_DIRECTIONS: { value: Exclude<IncomingDirection, 'none'>; label: string }[] = [
+  { value: 'crosscourt', label: 'Cross' },
+  { value: 'down_the_line', label: 'Down line' },
+  { value: 'inside_out', label: 'Inside out' },
+  { value: 'inside_in', label: 'Inside in' },
+  { value: 'short_angle', label: 'Short angle' },
+  { value: 'dropshot', label: 'Dropshot' },
+];
 
 /** Details of the last shot of a rally. */
 export interface RallyDetail {
@@ -126,6 +186,8 @@ export interface RallyDetail {
   direction: ShotDirection;
   shotType: ShotType;
   position: ShotPosition;
+  incomingBall?: IncomingBall[];
+  incomingDirection?: IncomingDirection;
 }
 
 export const rallyWonByServer = (e: RallyEnding) => e === 'server_winner' || e === 'returner_error';
@@ -142,8 +204,16 @@ export interface Point extends Syncable {
   end: PointEnd;
   /** Set when the serve went in and the point was played out. */
   rally?: RallyDetail;
+  notes?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PublicStats {
+  match: Match;
+  points: Point[];
+  nameA: string;
+  nameB: string;
 }
 
 export const SERVE_RESULTS: { value: ServeResult; label: string }[] = [
@@ -178,20 +248,26 @@ export const STROKES: { value: Exclude<Stroke, 'none'>; label: string }[] = [
 
 export const SHOT_DIRECTIONS: { value: Exclude<ShotDirection, 'none'>; label: string }[] = [
   { value: 'crosscourt', label: 'Cross court' },
-  { value: 'down_the_line', label: 'Down the line' },
+  { value: 'down_the_line', label: 'Down line' },
   { value: 'inside_out', label: 'Inside out' },
   { value: 'inside_in', label: 'Inside in' },
   { value: 'middle', label: 'Middle' },
   { value: 'short_angle', label: 'Short angle' },
 ];
 
-export const SHOT_TYPES: { value: Exclude<ShotType, 'none'>; label: string }[] = [
-  { value: 'topspin', label: 'Topspin' },
+export const SHOT_TYPES: { value: Exclude<ShotType, 'none' | 'topspin'>; label: string }[] = [
+  { value: 'drive_volley', label: 'Drive volley' },
   { value: 'slice', label: 'Slice' },
   { value: 'volley', label: 'Volley' },
   { value: 'smash', label: 'Smash' },
   { value: 'lob', label: 'Lob' },
   { value: 'dropshot', label: 'Dropshot' },
+];
+
+export const RECORDED_SHOT_TYPES: { value: ShotType; label: string }[] = [
+  ...SHOT_TYPES,
+  { value: 'topspin', label: 'Topspin (legacy)' },
+  { value: 'none', label: 'Not set' },
 ];
 
 export const SHOT_POSITIONS: { value: Exclude<ShotPosition, 'none'>; label: string }[] = [

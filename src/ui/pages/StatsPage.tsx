@@ -1,11 +1,16 @@
 import { useState, type ReactNode } from 'react';
+import { ChartNoAxesCombined } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
+import StatsShare from '../components/StatsShare';
+import { finalisationLabel } from '../../model/match';
 import { db, isLive, pointsForMatch } from '../../storage/db';
-import { usePlayerNames } from '../hooks';
+import { useAllPlayers, usePlayerNames } from '../hooks';
+import { canShareStats, useUser } from '../user';
 import {
-  errorTypeStats,
+  errorDirectionStats,
   filterSets,
+  isLuckyBall,
   pointContexts,
   rallyWinnerStats,
   serveLocationStats,
@@ -19,8 +24,9 @@ import {
   type SideFilter,
   type SituationFilter,
   type StrokeFilter,
+  type PointContext,
 } from '../../stats/matchStats';
-import { SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, SHOT_TYPES, type Side } from '../../model/types';
+import { RECORDED_SHOT_TYPES, SERVE_LOCATIONS, SHOT_DIRECTIONS, SHOT_POSITIONS, type PublicStats, type Side } from '../../model/types';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '-');
 const ratio = (n: number, d: number) => (d ? `${n}/${d} (${pct(n, d)})` : '-');
@@ -52,22 +58,24 @@ function ToggleChips<T extends string>({ value, options, onChange }: { value: T 
 
 function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }) {
   return (
-    <table className="stats-table">
-      <thead>
-        <tr>
-          {head.map((h, i) => (
-            <th key={i}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            {r.map((c, j) => (j === 0 ? <th key={j}>{c}</th> : <td key={j}>{c}</td>))}
+    <div className="stats-table-scroll" tabIndex={0} role="region" aria-label="Statistics table">
+      <table className="stats-table">
+        <thead>
+          <tr>
+            {head.map((heading, index) => <th key={index}>{heading}</th>)}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {row.map((cell, columnIndex) => columnIndex === 0
+                ? <th key={columnIndex}>{cell}</th>
+                : <td key={columnIndex}>{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -92,86 +100,123 @@ function SetChips({ options, value, onChange }: { options: SetOption[]; value: n
   );
 }
 
-type Section = 'summary' | 'serve' | 'stroke' | 'winners' | 'shots' | 'errors';
+export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showSets = true }: {
+  contexts: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; showSets?: boolean;
+}) {
+  const [sets, setSets] = useState<number[]>([]);
+  const sum = summary(filterSets(contexts, sets));
+  const players: Side[] = playerOnly ? ['A'] : ['A', 'B'];
+  const both = (value: (side: Side) => ReactNode) => players.map(value);
+  return <>
+    {showSets && <SetChips options={setOptions(contexts)} value={sets} onChange={setSets} />}
+    <Table head={['', ...players.map((side) => side === 'A' ? nameA : nameB)]} rows={[
+      ['Points won', ...both((side) => sum[side].pointsWon)],
+      ['Winners', ...both((side) => <strong>{sum[side].winners.total}</strong>)],
+      ['- Aces', ...both((side) => sum[side].winners.aces)],
+      ['- Return aces', ...both((side) => sum[side].winners.returnWinners)],
+      ['- Rally winners', ...both((side) => sum[side].winners.rallyWinners)],
+      ['Unforced errors', ...both((side) => <strong>{sum[side].errors.total}</strong>)],
+      ['- Double faults', ...both((side) => sum[side].errors.doubleFaults)],
+      ['- Return errors', ...both((side) => sum[side].errors.returnErrors)],
+      ['- Rally errors', ...both((side) => sum[side].errors.rallyErrors)],
+      ['1st serve in', ...both((side) => ratio(sum[side].firstServe.in, sum[side].firstServe.served))],
+      ['1st serve pts won', ...both((side) => ratio(sum[side].firstServe.won, sum[side].firstServe.in))],
+      ['2nd serve pts won', ...both((side) => ratio(sum[side].secondServe.won, sum[side].secondServe.served))],
+    ]} />
+  </>;
+}
 
-export default function StatsPage({ id }: { id: string }) {
+type Section = 'serve' | 'stroke' | 'winners' | 'shots' | 'errors';
+
+export default function StatsPage({ id, returnTo }: { id: string; returnTo?: string | null }) {
+  const user = useUser();
   const match = useLiveQuery(async () => {
     const m = await db.matches.get(id);
     return isLive(m) ? m : null;
   }, [id]);
   const points = useLiveQuery(() => pointsForMatch(id), [id]);
   const names = usePlayerNames();
+  const players = useAllPlayers() ?? [];
+  if (match === undefined || points === undefined) return null;
+  if (match === null) {
+    return (
+      <>
+        <Header title="Stats" back={returnTo ?? '/match'} />
+        <main className="page"><p>Match not found.</p></main>
+      </>
+    );
+  }
+  return <StatsView
+    match={match} points={points}
+    nameA={names.get(match.playerAId) ?? 'Player A'} nameB={names.get(match.playerBId) ?? 'Player B'}
+    back={returnTo ?? `/match/${id}`} sharing={canShareStats(user, match, players) ? <StatsShare key={id} matchId={id} /> : undefined}
+    footer={match.status === 'completed' ? <a className="btn advanced-analysis-link"
+      href={`#/match/${encodeURIComponent(id)}/advanced-analysis${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ''}`}>
+      <ChartNoAxesCombined size={20} aria-hidden="true" /> Advanced Analysis
+    </a> : undefined}
+  />;
+}
+
+export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, controls, footer, contexts, aggregate, playerOnly = false }: PublicStats & {
+  back?: string; sharing?: ReactNode; controls?: ReactNode; footer?: ReactNode; contexts?: PointContext[]; aggregate?: string; playerOnly?: boolean;
+}) {
   const [server, setServer] = useState<Side>('A');
   const [side, setSide] = useState<SideFilter>('all');
   const [situation, setSituation] = useState<SituationFilter>('all');
   const [strokePlayer, setStrokePlayer] = useState<Side>('A');
   const [games, setGames] = useState<GameFilter>('all');
   const [winnerStroke, setWinnerStroke] = useState<'forehand' | 'backhand'>('forehand');
+  const [shotStroke, setShotStroke] = useState<StrokeFilter>('all');
+  const [shotPlayer, setShotPlayer] = useState<Side>('A');
+  const [uePlayer, setUePlayer] = useState<Side>('A');
   const [ueStroke, setUeStroke] = useState<StrokeFilter>('all');
   const [uePosition, setUePosition] = useState<PositionFilter>('all');
   const [sets, setSets] = useState<Partial<Record<Section, number[]>>>({});
 
-  if (match === undefined || points === undefined) return null;
-  if (match === null) {
-    return (
-      <>
-        <Header title="Stats" back="/match" />
-        <main className="page">
-          <p>Match not found.</p>
-        </main>
-      </>
-    );
-  }
-
-  const a = names.get(match.playerAId) ?? 'Player A';
-  const b = names.get(match.playerBId) ?? 'Player B';
-  const ctxs = pointContexts(match, points);
+  const ctxs = contexts ?? pointContexts(match, points);
   const played = setOptions(ctxs);
   const sel = (s: Section) => sets[s] ?? [];
   const inSets = (s: Section) => filterSets(ctxs, sel(s));
-  const setChips = (s: Section) => <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
-  const sum = summary(inSets('summary'));
-  const loc = serveLocationStats(inSets('serve'), server, side, situation);
-  const strokes = strokeStats(inSets('stroke'), strokePlayer, games);
+  const setChips = (s: Section) => contexts ? null : <SetChips options={played} value={sel(s)} onChange={(v) => setSets({ ...sets, [s]: v })} />;
+  const loc = serveLocationStats(inSets('serve'), playerOnly ? 'A' : server, side, situation);
+  const strokes = strokeStats(inSets('stroke'), playerOnly ? 'A' : strokePlayer, games);
   const rw = rallyWinnerStats(inSets('winners'), winnerStroke);
-  const shots = shotTypeStats(inSets('shots'));
-  const errs = errorTypeStats(inSets('errors'), ueStroke, uePosition);
-  const both = (f: (s: Side) => ReactNode): ReactNode[] => [f('A'), f('B')];
+  const shots = shotTypeStats(inSets('shots'), shotStroke);
+  const shotSide = playerOnly ? 'A' : shotPlayer;
+  const errorSide = playerOnly ? 'A' : uePlayer;
+  const shotName = shotSide === 'A' ? a : b;
+  const winnerShotTypes = RECORDED_SHOT_TYPES.filter((t) => t.value !== 'topspin' || rw.shotType.A.topspin + (playerOnly ? 0 : rw.shotType.B.topspin) > 0);
+  const shotTypes = RECORDED_SHOT_TYPES.filter((t) => t.value !== 'topspin'
+    || shots[shotSide].topspin.winners + shots[shotSide].topspin.errors > 0);
+  const errs = errorDirectionStats(inSets('errors'), ueStroke, uePosition);
+  const players: Side[] = playerOnly ? ['A'] : ['A', 'B'];
+  const both = (f: (s: Side) => ReactNode): ReactNode[] => players.map(f);
+  const playerNames = players.map((s) => s === 'A' ? a : b);
   const locLabel = (v: string) => SERVE_LOCATIONS.find((l) => l.value === v)?.label ?? 'Not set';
 
   return (
     <>
-      <Header title="Stats" back={`/match/${id}`} />
+      <Header title={aggregate ? 'Player stats' : 'Stats'} back={back} />
       <main className="page stats">
+        {controls}
         <p className="muted">
-          {a} vs {b} · {points.length} points
+          {aggregate ? `${a} · ${aggregate}` : `${a} vs ${b}`} · {points.length} points
           {points.some((p) => p.end === 'unrecorded') ? ' (manual points excluded from details)' : ''}
-          {played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
+          {!contexts && played.length > 0 ? '. Set buttons: none selected = all sets.' : ''}
         </p>
+        {!contexts && match.finalisation && <p>{finalisationLabel(match, a, b)}</p>}
+        {aggregate && <p className="muted">Combined recorded-point statistics from selected completed matches visible to your account. Each match uses its own scoring rules.</p>}
+        {points.some(isLuckyBall) && <p className="muted small">
+          Lucky ball points count only in total Winners and are excluded from all other stats. The match score is unchanged.
+        </p>}
+        {sharing}
 
         <h2>Summary</h2>
-        {setChips('summary')}
-        <Table
-          head={['', a, b]}
-          rows={[
-            ['Points won', ...both((s) => sum[s].pointsWon)],
-            ['Winners', ...both((s) => <strong>{sum[s].winners.total}</strong>)],
-            ['- Aces', ...both((s) => sum[s].winners.aces)],
-            ['- Return aces', ...both((s) => sum[s].winners.returnWinners)],
-            ['- Rally winners', ...both((s) => sum[s].winners.rallyWinners)],
-            ['Unforced errors', ...both((s) => <strong>{sum[s].errors.total}</strong>)],
-            ['- Double faults', ...both((s) => sum[s].errors.doubleFaults)],
-            ['- Return errors', ...both((s) => sum[s].errors.returnErrors)],
-            ['- Rally errors', ...both((s) => sum[s].errors.rallyErrors)],
-            ['1st serve in', ...both((s) => ratio(sum[s].firstServe.in, sum[s].firstServe.served))],
-            ['1st serve pts won', ...both((s) => ratio(sum[s].firstServe.won, sum[s].firstServe.in))],
-            ['2nd serve pts won', ...both((s) => ratio(sum[s].secondServe.won, sum[s].secondServe.served))],
-          ]}
-        />
+        <SummaryStats contexts={ctxs} nameA={a} nameB={b} playerOnly={playerOnly} showSets={!contexts} />
 
         <h2>Serve location</h2>
         {setChips('serve')}
-        <Chips value={server} onChange={setServer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />
+        {!playerOnly && <Chips value={server} onChange={setServer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />}
         <Chips
           value={side}
           onChange={setSide}
@@ -207,7 +252,7 @@ export default function StatsPage({ id }: { id: string }) {
 
         <h2>Forehand / backhand</h2>
         {setChips('stroke')}
-        <Chips value={strokePlayer} onChange={setStrokePlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />
+        {!playerOnly && <Chips value={strokePlayer} onChange={setStrokePlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />}
         <div className="chips">
           {(['serve', 'return'] as const).map((g) => (
             <button key={g} type="button" className={`chip ${games === g ? 'on' : ''}`} onClick={() => setGames(games === g ? 'all' : g)}>
@@ -234,24 +279,33 @@ export default function StatsPage({ id }: { id: string }) {
             { value: 'backhand', label: 'Backhand' },
           ]}
         />
-        <Table head={['Shot direction', a, b]} rows={SHOT_DIRECTIONS.map((d) => [d.label, ...both((s) => rw.direction[s][d.value])])} />
-        <Table head={['Shot type', a, b]} rows={SHOT_TYPES.map((t) => [t.label, ...both((s) => rw.shotType[s][t.value])])} />
-        <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; shot type not set counts as Topspin.</p>
+        <Table head={['Shot direction', ...playerNames]} rows={SHOT_DIRECTIONS.map((d) => [d.label, ...both((s) => rw.direction[s][d.value])])} />
+        <Table head={['Shot type', ...playerNames]} rows={winnerShotTypes.map((t) => [t.label, ...both((s) => rw.shotType[s][t.value])])} />
+        <p className="muted small">Rally winners (incl. forced errors) hit with the chosen stroke. Direction not set counts as Middle; unspecified shot types appear as Not set. Historical shot types appear only when recorded in the selected data.</p>
 
         <h2>Shot type</h2>
+        {!playerOnly && <Chips value={shotPlayer} onChange={setShotPlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />}
         {setChips('shots')}
+        <ToggleChips
+          value={shotStroke}
+          onChange={setShotStroke}
+          options={[
+            { value: 'forehand', label: 'Forehand' },
+            { value: 'backhand', label: 'Backhand' },
+          ]}
+        />
         <Table
-          head={['', `${a} W`, `${a} UE`, `${b} W`, `${b} UE`]}
-          rows={[...SHOT_TYPES, { value: 'none' as const, label: 'Not set' }].map((t) => [
+          head={['', `${shotName} W`, `${shotName} UE`]}
+          rows={shotTypes.map((t) => [
             t.label,
-            shots.A[t.value].winners,
-            shots.A[t.value].errors,
-            shots.B[t.value].winners,
-            shots.B[t.value].errors,
+            shots[shotSide][t.value].winners, shots[shotSide][t.value].errors,
           ])}
         />
 
+        <p className="muted small">No stroke selected = both forehand and backhand, including shots with stroke not set.</p>
+
         <h2>Unforced errors</h2>
+        {!playerOnly && <Chips value={uePlayer} onChange={setUePlayer} options={[{ value: 'A', label: a }, { value: 'B', label: b }]} />}
         {setChips('errors')}
         <ToggleChips
           value={ueStroke}
@@ -262,17 +316,20 @@ export default function StatsPage({ id }: { id: string }) {
           ]}
         />
         <ToggleChips value={uePosition} onChange={setUePosition} options={SHOT_POSITIONS} />
-        <Table
-          head={['Error type', a, b]}
-          rows={(['net', 'long', 'wide', 'none'] as const).map((t) => [
-            t === 'none' ? 'Not set' : t[0].toUpperCase() + t.slice(1),
-            ...both((s) => errs[s][t]),
-          ])}
-        />
+        <section aria-label={`${errorSide === 'A' ? a : b} unforced errors`}>
+          <Table
+            head={['Shot direction', 'Net', 'Long', 'Wide', 'Total']}
+            rows={[...SHOT_DIRECTIONS, { value: 'none' as const, label: 'Not set' }].map((d) => [
+              d.label, errs[errorSide][d.value].net, errs[errorSide][d.value].long, errs[errorSide][d.value].wide, errs[errorSide][d.value].total,
+            ])}
+          />
+        </section>
         <p className="muted small">
           No stroke selected = all unforced errors (incl. double faults and stroke not set). No position selected = all positions;
           position not set (and double faults / return errors) counts as Baseline.
+          {' '}Missing directions appear as Not set. Total includes errors with an unrecorded error type.
         </p>
+        {footer}
       </main>
     </>
   );

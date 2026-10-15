@@ -1,5 +1,6 @@
 import { computeScore, other, sideKey, type ScoreState } from '../engine/score';
 import type { Match, Point, Rules, ServeLocation, ShotDirection, ShotType, Side } from '../model/types';
+import { RECORDED_SHOT_TYPES } from '../model/types';
 
 export type Situation = 'first' | 'game' | 'break';
 export type SideFilter = 'all' | 'deuce' | 'ad';
@@ -19,6 +20,8 @@ export interface PointContext {
 }
 
 export type PerSide<T> = Record<Side, T>;
+
+export const isLuckyBall = (point: Point) => point.end === 'rally' && point.rally?.lucky === true;
 
 function situationsOf(before: ScoreState, server: Side, rules: Rules): Set<Situation> {
   const out = new Set<Situation>();
@@ -109,6 +112,10 @@ const emptySummary = (): Summary => ({
 export function summary(ctxs: PointContext[]): PerSide<Summary> {
   const s: PerSide<Summary> = { A: emptySummary(), B: emptySummary() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) {
+      s[p.winner].winners.total++;
+      continue;
+    }
     s[p.winner].pointsWon++;
     const { winnerBy, errorBy } = pointOutcome(p);
     if (winnerBy) {
@@ -159,6 +166,7 @@ export function serveLocationStats(
   const out = Object.fromEntries(LOCATIONS.map((l) => [l, { first: cell(), second: cell() }])) as ServeLocationStats;
   for (const c of ctxs) {
     const p = c.point;
+    if (isLuckyBall(p)) continue;
     if (p.server !== server || p.serves.length === 0) continue;
     if (side !== 'all' && c.side !== side) continue;
     if (situation !== 'all' && !c.situations.has(situation)) continue;
@@ -224,6 +232,7 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
   const opp = other(player);
   const endings: Ending[] = [];
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (games === 'serve' && p.server !== player) continue;
     if (games === 'return' && p.server === player) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
@@ -265,14 +274,16 @@ export function strokeStats(ctxs: PointContext[], player: Side, games: GameFilte
 
 export type ShotTypeStats = PerSide<Record<ShotType, WinnerErrorCount>>;
 
-const SHOT_TYPES: ShotType[] = ['topspin', 'slice', 'volley', 'smash', 'lob', 'dropshot', 'none'];
+const SHOT_TYPES = RECORDED_SHOT_TYPES.map((type) => type.value);
 
 /** Shot type of the last shot of each rally, split into winners and unforced errors. */
-export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
+export function shotTypeStats(ctxs: PointContext[], stroke: StrokeFilter = 'all'): ShotTypeStats {
   const row = () => Object.fromEntries(SHOT_TYPES.map((t) => [t, { winners: 0, errors: 0 }])) as Record<ShotType, WinnerErrorCount>;
   const out: ShotTypeStats = { A: row(), B: row() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (p.end !== 'rally' || !p.rally) continue;
+    if (stroke !== 'all' && p.rally.stroke !== stroke) continue;
     const { winnerBy, errorBy } = pointOutcome(p);
     out[(winnerBy ?? errorBy)!][p.rally.shotType][winnerBy ? 'winners' : 'errors']++;
   }
@@ -281,22 +292,23 @@ export function shotTypeStats(ctxs: PointContext[]): ShotTypeStats {
 
 export interface RallyWinnerStats {
   direction: PerSide<Record<Exclude<ShotDirection, 'none'>, number>>;
-  shotType: PerSide<Record<Exclude<ShotType, 'none'>, number>>;
+  shotType: PerSide<Record<ShotType, number>>;
 }
 
 const DIRECTIONS: Exclude<ShotDirection, 'none'>[] = ['crosscourt', 'down_the_line', 'inside_out', 'inside_in', 'middle', 'short_angle'];
 
-/** Rally winners hit with one stroke, by direction (unset = middle) and shot type (unset = topspin). */
+/** Rally winners hit with one stroke, by direction (unset = middle) and recorded shot type. */
 export function rallyWinnerStats(ctxs: PointContext[], stroke: 'forehand' | 'backhand'): RallyWinnerStats {
   const dirs = () => Object.fromEntries(DIRECTIONS.map((d) => [d, 0])) as RallyWinnerStats['direction']['A'];
-  const types = () => Object.fromEntries(SHOT_TYPES.filter((t) => t !== 'none').map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
+  const types = () => Object.fromEntries(SHOT_TYPES.map((t) => [t, 0])) as RallyWinnerStats['shotType']['A'];
   const out: RallyWinnerStats = { direction: { A: dirs(), B: dirs() }, shotType: { A: types(), B: types() } };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     if (p.end !== 'rally' || !p.rally || p.rally.stroke !== stroke) continue;
     const { winnerBy } = pointOutcome(p);
     if (!winnerBy) continue;
     out.direction[winnerBy][p.rally.direction === 'none' ? 'middle' : p.rally.direction]++;
-    out.shotType[winnerBy][p.rally.shotType === 'none' ? 'topspin' : p.rally.shotType]++;
+    out.shotType[winnerBy][p.rally.shotType]++;
   }
   return out;
 }
@@ -304,6 +316,7 @@ export function rallyWinnerStats(ctxs: PointContext[], stroke: 'forehand' | 'bac
 export type ErrorType = 'net' | 'long' | 'wide' | 'none';
 export type StrokeFilter = 'all' | 'forehand' | 'backhand';
 export type PositionFilter = 'all' | 'baseline' | 'approach' | 'net';
+export type DirectionErrors = Record<ShotDirection, Record<ErrorType | 'total', number>>;
 
 /**
  * Unforced errors (double faults, return errors, rally errors) by error type, filtered by stroke and court position.
@@ -312,23 +325,42 @@ export type PositionFilter = 'all' | 'baseline' | 'approach' | 'net';
 export function errorTypeStats(ctxs: PointContext[], stroke: StrokeFilter, position: PositionFilter): PerSide<Record<ErrorType, number>> {
   const empty = (): Record<ErrorType, number> => ({ net: 0, long: 0, wide: 0, none: 0 });
   const out: PerSide<Record<ErrorType, number>> = { A: empty(), B: empty() };
+  const directions = errorDirectionStats(ctxs, stroke, position);
+  for (const side of ['A', 'B'] as const) {
+    for (const counts of Object.values(directions[side])) {
+      for (const type of ['net', 'long', 'wide', 'none'] as const) out[side][type] += counts[type];
+    }
+  }
+  return out;
+}
+
+export function errorDirectionStats(ctxs: PointContext[], stroke: StrokeFilter, position: PositionFilter): PerSide<DirectionErrors> {
+  const empty = (): DirectionErrors => Object.fromEntries(
+    [...DIRECTIONS, 'none'].map((direction) => [direction, { net: 0, long: 0, wide: 0, none: 0, total: 0 }]),
+  ) as DirectionErrors;
+  const out: PerSide<DirectionErrors> = { A: empty(), B: empty() };
   for (const { point: p } of ctxs) {
+    if (isLuckyBall(p)) continue;
     const { errorBy } = pointOutcome(p);
     if (!errorBy) continue;
     let s: string;
     let pos: string;
     let type: ErrorType;
+    let direction: ShotDirection = 'none';
     if (p.end === 'double_fault') {
       [s, pos, type] = ['serve', 'baseline', p.serves.at(-1)?.fault ?? 'none'];
     } else if (p.end === 'return_error') {
       const r = p.serves.at(-1)?.return;
       [s, pos, type] = [r?.stroke ?? 'none', 'baseline', r?.error ?? 'none'];
+      direction = r?.direction ?? 'none';
     } else if (p.rally) {
       [s, pos, type] = [p.rally.stroke, p.rally.position === 'none' ? 'baseline' : p.rally.position, p.rally.error ?? 'none'];
+      direction = p.rally.direction;
     } else continue;
     if (stroke !== 'all' && s !== stroke) continue;
     if (position !== 'all' && pos !== position) continue;
-    out[errorBy][type]++;
+    out[errorBy][direction][type]++;
+    out[errorBy][direction].total++;
   }
   return out;
 }

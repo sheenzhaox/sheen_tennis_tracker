@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   errorTypeStats,
+  errorDirectionStats,
   filterSets,
   pointContexts,
   rallyWinnerStats,
@@ -132,6 +133,146 @@ describe('match stats', () => {
     expect(errorTypeStats(ctxs, 'backhand', 'net').B.long).toBe(0);
     // Double fault: no stroke filter, position defaults to baseline.
     expect(errorTypeStats(ctxs, 'all', 'baseline').A.net).toBe(1);
+  });
+
+  it('counts drive volleys, legacy topspin, and unspecified shots separately', () => {
+    const shots: Point[] = [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'topspin' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'none' })),
+    ];
+    const contexts = pointContexts(match, shots);
+    const winners = rallyWinnerStats(contexts, 'forehand');
+    expect(winners.shotType.A.drive_volley).toBe(1);
+    expect(winners.shotType.A.topspin).toBe(1);
+    expect(winners.shotType.A.none).toBe(1);
+    const types = shotTypeStats(contexts);
+    expect(types.A.drive_volley).toEqual({ winners: 1, errors: 1 });
+    expect(types.A.topspin).toEqual({ winners: 1, errors: 0 });
+    expect(types.A.none).toEqual({ winners: 1, errors: 0 });
+  });
+
+  it('filters shot types by stroke while the default includes both strokes and unset strokes', () => {
+    const contexts = pointContexts(match, [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { stroke: 'forehand', shotType: 'drive_volley' })),
+      point('B', 'A', 'rally', [serve('in')], rally('server_error', { stroke: 'forehand', shotType: 'slice' })),
+      point('A', 'B', 'rally', [serve('in')], rally('returner_winner', { stroke: 'backhand', shotType: 'slice' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { stroke: 'backhand', shotType: 'topspin' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { shotType: 'none' })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { lucky: true, stroke: 'forehand', shotType: 'drive_volley' })),
+    ]);
+    const all = shotTypeStats(contexts);
+    expect(all).toEqual(shotTypeStats(contexts, 'all'));
+    expect(all.A.drive_volley.winners).toBe(1);
+    expect(all.A.topspin.errors).toBe(1);
+    expect(all.A.none.winners).toBe(1);
+    const forehand = shotTypeStats(contexts, 'forehand');
+    expect(forehand.A.drive_volley).toEqual({ winners: 1, errors: 0 });
+    expect(forehand.B.slice).toEqual({ winners: 0, errors: 1 });
+    expect(forehand.A.topspin.errors).toBe(0);
+    expect(forehand.A.none.winners).toBe(0);
+    const backhand = shotTypeStats(contexts, 'backhand');
+    expect(backhand.B.slice).toEqual({ winners: 1, errors: 0 });
+    expect(backhand.A.topspin).toEqual({ winners: 0, errors: 1 });
+    expect(backhand.A.drive_volley.winners).toBe(0);
+    expect(backhand.A.none.winners).toBe(0);
+  });
+
+  it('cross-tabulates error directions and types for each player, including missing details', () => {
+    const errors = [
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', {
+        stroke: 'forehand', direction: 'crosscourt', position: 'approach', error: 'net',
+      })),
+      point('B', 'A', 'rally', [serve('in')], rally('server_error', {
+        stroke: 'backhand', direction: 'down_the_line', position: 'net', error: 'long',
+      })),
+      point('B', 'B', 'return_error', [serve('return_error', {
+        return: { stroke: 'backhand', direction: 'inside_out', error: 'wide' },
+      })]),
+      point('A', 'B', 'double_fault', [serve('fault', { fault: 'long' }), serve('fault', { fault: 'net' })]),
+      point('A', 'A', 'return_error', [serve('return_error')]),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', { direction: 'crosscourt' })),
+      point('A', 'B', 'rally', [serve('in')], rally('server_error', {
+        lucky: true, direction: 'crosscourt', error: 'wide',
+      })),
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { direction: 'crosscourt' })),
+      point('A', 'A', 'unrecorded', []),
+    ];
+    const contexts = pointContexts(match, errors);
+    const all = errorDirectionStats(contexts, 'all', 'all');
+    expect(all.A.crosscourt).toEqual({ net: 1, long: 0, wide: 0, none: 1, total: 2 });
+    expect(all.B.down_the_line).toEqual({ net: 0, long: 1, wide: 0, none: 0, total: 1 });
+    expect(all.A.inside_out.wide).toBe(1);
+    expect(all.A.none).toEqual({ net: 1, long: 0, wide: 0, none: 0, total: 1 });
+    expect(all.B.none).toEqual({ net: 0, long: 0, wide: 0, none: 1, total: 1 });
+    expect(errorDirectionStats(contexts, 'forehand', 'approach').A.crosscourt.total).toBe(1);
+    expect(errorDirectionStats(contexts, 'backhand', 'net').B.down_the_line.long).toBe(1);
+    expect(errorDirectionStats(contexts, 'backhand', 'baseline').A.inside_out.wide).toBe(1);
+    expect(errorDirectionStats(contexts, 'forehand', 'all').A.none.total).toBe(0);
+    expect(errorDirectionStats(contexts, 'all', 'net').A.crosscourt.total).toBe(0);
+    expect(Object.values(all.A).reduce((total, counts) => total + counts.total, 0)).toBe(4);
+    expect(Object.values(all.B).reduce((total, counts) => total + counts.total, 0)).toBe(2);
+  });
+
+  for (const winner of ['A', 'B'] as const) {
+    it(`counts a Lucky ball only in total Winners for ${winner}`, () => {
+      for (const server of ['A', 'B'] as const) {
+        for (const serves of [[serve('in', { location: 't' })], [serve('fault', { location: 'wide' }), serve('in', { location: 'body' })]]) {
+          const lucky = point(server, winner, 'rally', serves, rally(server === winner ? 'server_winner' : 'returner_winner', {
+            lucky: true, count: 9, stroke: 'forehand', direction: 'down_the_line', shotType: 'drive_volley', position: 'net',
+          }));
+          const contexts = pointContexts(match, [lucky]);
+          const expected = summary([]);
+          expected[winner].winners.total = 1;
+          expect(summary(contexts)).toEqual(expected);
+          for (const player of ['A', 'B'] as const) {
+            for (const games of ['all', 'serve', 'return'] as const) {
+              expect(strokeStats(contexts, player, games)).toEqual(strokeStats([], player, games));
+            }
+            for (const side of ['all', 'deuce', 'ad'] as const) {
+              for (const situation of ['all', 'first', 'game', 'break'] as const) {
+                expect(serveLocationStats(contexts, player, side, situation)).toEqual(serveLocationStats([], player, side, situation));
+              }
+            }
+          }
+          expect(shotTypeStats(contexts)).toEqual(shotTypeStats([]));
+          for (const stroke of ['forehand', 'backhand'] as const) {
+            expect(rallyWinnerStats(contexts, stroke)).toEqual(rallyWinnerStats([], stroke));
+          }
+          expect(errorTypeStats(contexts, 'all', 'all')).toEqual(errorTypeStats([], 'all', 'all'));
+        }
+      }
+    });
+  }
+
+  it('keeps scoring context and normal point stats unchanged after a Lucky ball', () => {
+    const lucky = point('A', 'A', 'rally', [serve('in', { location: 't' })], rally('server_winner', { lucky: true, count: 3, stroke: 'forehand' }));
+    const normal = point('A', 'B', 'return_winner', [serve('return_winner', { location: 'body' })]);
+    const contexts = pointContexts(match, [lucky, normal]);
+    expect(contexts[1].before.points).toEqual({ a: 1, b: 0 });
+    expect(contexts[1].side).toBe('ad');
+    const expected = summary(contexts.slice(1));
+    expected.A.winners.total++;
+    expect(summary(contexts)).toEqual(expected);
+    expect(serveLocationStats(contexts, 'A', 'ad', 'all').body.first).toEqual({ count: 1, in: 1, won: 0 });
+    expect(serveLocationStats(contexts, 'A', 'all', 'all')).toEqual(serveLocationStats(contexts.slice(1), 'A', 'all', 'all'));
+    expect(strokeStats(contexts, 'B', 'all')).toEqual(strokeStats(contexts.slice(1), 'B', 'all'));
+  });
+
+  it('counts Lucky ball winners only in their selected set', () => {
+    const recorded = [
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { lucky: true })),
+      ...Array.from({ length: 23 }, () => point('A', 'A', 'unrecorded', [])),
+      point('B', 'B', 'rally', [serve('in')], rally('server_winner', { lucky: true })),
+    ];
+    const contexts = pointContexts(match, recorded);
+    expect(contexts.at(-1)?.set).toBe(1);
+    expect(summary(filterSets(contexts, [0])).A.winners.total).toBe(1);
+    expect(summary(filterSets(contexts, [0])).B.winners.total).toBe(0);
+    expect(summary(filterSets(contexts, [1])).A.winners.total).toBe(0);
+    expect(summary(filterSets(contexts, [1])).B.winners.total).toBe(1);
+    expect(summary(filterSets(contexts, [1])).B.pointsWon).toBe(0);
   });
 
   it('lists played sets incl. match tiebreak and filters by set', () => {

@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import ScoreTable from '../components/ScoreTable';
 import OptionRow from '../components/OptionRow';
 import RallyEntry from '../components/RallyEntry';
+import { finalisationLabel } from '../../model/match';
 import { shortName } from '../format';
 import { computeScore, other } from '../../engine/score';
 import { deleteRecord, newId, pointsForMatch, saveRecord } from '../../storage/db';
@@ -32,10 +33,8 @@ import {
 
 function shortSync(s: SyncState, pending: number): string {
   switch (s.status) {
-    case 'no-token':
-      return 'Sync off';
-    case 'unauthorized':
-      return 'Sync token rejected';
+    case 'signed-out':
+      return 'Signed out';
     case 'offline':
       return `Offline · ${pending} pending`;
     case 'syncing':
@@ -48,7 +47,7 @@ function shortSync(s: SyncState, pending: number): string {
 }
 
 function syncTone(s: SyncState, pending: number): 'ok' | 'warn' | 'bad' {
-  if (s.status === 'unauthorized' || s.status === 'error' || s.status === 'no-token') return 'bad';
+  if (s.status === 'error' || s.status === 'signed-out') return 'bad';
   if (s.status === 'offline' || pending > 0) return 'warn';
   return 'ok';
 }
@@ -96,15 +95,20 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const [draft, setDraft] = useState<Serve[]>([]);
   const [rally, setRally] = useState(false);
   const [sel, setSel] = useState<Selection>(EMPTY);
+  const [notes, setNotes] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
   const sync = useSyncState();
   const pending = usePendingCount();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   if (!points) return null;
 
   const firstServer = match.firstServer ?? 'A';
   const winners = points.map((p) => p.winner);
   const score = computeScore(match.rules, firstServer, winners);
+  const finished = match.status === 'completed' || match.status === 'abandoned';
+  const winner = match.finalisation?.winner ?? score.winner;
   const server = score.server;
   const receiver = other(server);
   const serveNo = draft.length + 1;
@@ -114,7 +118,9 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   const resetServe = () => setSel(EMPTY);
 
   async function recordPoint(serves: Serve[], end: PointEnd, winner: Side, rallyDetail?: RallyDetail) {
+    if (finished || busy) return;
     setBusy(true);
+    setError('');
     try {
       const now = Date.now();
       await saveRecord<Point>('points', {
@@ -126,6 +132,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
         serves,
         end,
         rally: rallyDetail,
+        notes: notes.trim() || undefined,
         createdAt: now,
         updatedAt: now,
       });
@@ -135,6 +142,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       setDraft([]);
       setRally(false);
       resetServe();
+      setNotes('');
+      setNoteOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -142,7 +153,9 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
 
   /** Adds a missed point with no details. */
   async function addUnrecorded(winner: Side) {
+    if (finished || busy) return;
     setBusy(true);
+    setError('');
     try {
       const now = Date.now();
       await saveRecord<Point>('points', {
@@ -153,6 +166,7 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
         winner,
         serves: [],
         end: 'unrecorded',
+        notes: notes.trim() || undefined,
         createdAt: now,
         updatedAt: now,
       });
@@ -162,6 +176,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       setDraft([]);
       setRally(false);
       resetServe();
+      setNotes('');
+      setNoteOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -202,6 +220,21 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
   }
 
   async function undo() {
+    if (match.finalisation) {
+      setBusy(true);
+      setError('');
+      try {
+        await saveRecord<Match>('matches', { ...match, status: 'in_progress', finishedAt: undefined, finalisation: undefined });
+        setDraft([]);
+        setRally(false);
+        resetServe();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (rally) {
       setRally(false);
       setDraft(draft.slice(0, -1));
@@ -226,13 +259,15 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
     }
   }
 
-  const canUndo = rally || draft.length > 0 || hasSelection || points.length > 0;
+  const canUndo = !!match.finalisation || rally || draft.length > 0 || hasSelection || points.length > 0;
 
   return (
     <div className="tracker">
-      {score.winner ? (
+      {error && <p className="error" role="alert">{error}</p>}
+      {winner || finished ? (
         <div className="match-over">
-          <strong>{name(score.winner)}</strong> wins the match
+          {match.finalisation ? finalisationLabel(match, nameA, nameB)
+            : winner ? <><strong>{name(winner)}</strong> wins the match</> : 'Match finished'}
         </div>
       ) : (
         <>
@@ -304,8 +339,24 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
       )}
 
       <button type="button" className="btn undo-btn" disabled={!canUndo || busy} onClick={() => void undo()}>
-        Undo
+        {match.finalisation ? 'Undo finalisation' : 'Undo'}
       </button>
+      {!winner && !finished && (
+        <div className="form point-note-entry">
+          <button type="button" className="btn btn-compact" disabled={busy}
+            aria-expanded={noteOpen} aria-controls="point-note"
+            onClick={() => setNoteOpen(!noteOpen)}>
+            {notes.trim() ? 'Note (added)' : 'Note'}
+          </button>
+          {noteOpen && (
+            <label>
+              Point observation
+              <textarea id="point-note" rows={3} value={notes} disabled={busy}
+                onChange={(e) => setNotes(e.target.value)} placeholder="Add an observation for this point" />
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="score-dock">
         <ScoreTable
@@ -313,8 +364,10 @@ export default function MatchTracker({ match, nameA, nameB }: Props) {
           noAd={match.rules.noAd}
           nameA={nameA}
           nameB={nameB}
+          finished={finished}
+          winner={winner}
           addDisabled={busy}
-          onAddPoint={(s) => void addUnrecorded(s)}
+          onAddPoint={finished ? undefined : (s) => void addUnrecorded(s)}
         />
         <div className="dock-footer">
           <a className={`sync-badge ${syncTone(sync, pending)}`} href="#/settings">
