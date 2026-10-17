@@ -4,24 +4,22 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
 import { db, isLive, pointsForMatch } from '../../storage/db';
 import { usePlayerNames } from '../hooks';
-import { formatMatchDay, surfaceLabel } from '../format';
+import { formatMatchDay, matchDayKey, matchSortKey, surfaceLabel } from '../format';
+import { servingTotals, type MatchContexts } from '../../stats/playerStats';
 import { describeRules } from '../../model/rules';
 import { finalisationLabel } from '../../model/match';
 import { SERVE_LOCATIONS, SERVE_TYPES, type Match, type Point, type Side } from '../../model/types';
 import {
-  breakPointsSaved,
   completeFirstServeGame,
   firstServeBands,
   firstServeGames,
   firstServeHoldThresholds,
-  locationRepeats,
   pointContexts,
   serveDistribution,
   serveFaults,
   serveImpactStats,
   serveLocationImpact,
   servePerformance,
-  serviceGamesHeld,
   setOptions,
   type ImpactRow,
   type KeyPoint,
@@ -120,7 +118,7 @@ function PickChips<T extends string | number>({ label, options, value, onChange 
 const only = <T,>(v: T | All): T[] => (v === 'all' ? [] : [v as T]);
 
 /** One part's own Player / Set and optional extra selectors, each defaulting to Player A / All. */
-function useServeFilters(ctxs: PointContext[], nameA: string, nameB: string, keys: FilterKey[]): [ServeFilters, ReactNode] {
+function useServeFilters(ctxs: PointContext[], nameA: string, nameB: string, keys: FilterKey[], playerOnly = false): [ServeFilters, ReactNode] {
   const [server, setServer] = useState<Side>('A');
   const [set, setSet] = useState<number | All>('all');
   const [side, setSide] = useState<'deuce' | 'ad' | All>('all');
@@ -132,9 +130,9 @@ function useServeFilters(ctxs: PointContext[], nameA: string, nameB: string, key
     server, sets: only(set), sides: only(side), attempts: only(attempt), keyPoints: only(point), locations: only(location),
   };
   const controls = <>
-    <PickChips label="Player" value={server} onChange={setServer} options={[{ value: 'A', label: nameA }, { value: 'B', label: nameB }]} />
-    {sets.length > 1 && <PickChips label="Set" value={set} onChange={setSet} options={[{ value: 'all', label: 'All sets' }, ...sets]} />}
-    {sets.length === 1 && <PickChips label="Set" value={sets[0].value} onChange={() => {}} options={sets} />}
+    {!playerOnly && <PickChips label="Player" value={server} onChange={setServer} options={[{ value: 'A', label: nameA }, { value: 'B', label: nameB }]} />}
+    {!playerOnly && sets.length > 1 && <PickChips label="Set" value={set} onChange={setSet} options={[{ value: 'all', label: 'All sets' }, ...sets]} />}
+    {!playerOnly && sets.length === 1 && <PickChips label="Set" value={sets[0].value} onChange={() => {}} options={sets} />}
     {keys.includes('side') && <PickChips label="Court side" value={side} onChange={setSide}
       options={[{ value: 'all', label: 'All sides' }, { value: 'deuce', label: 'Deuce' }, { value: 'ad', label: 'Ad' }]} />}
     {keys.includes('attempt') && <PickChips label="Serve attempt" value={attempt} onChange={setAttempt}
@@ -147,10 +145,9 @@ function useServeFilters(ctxs: PointContext[], nameA: string, nameB: string, key
   return [filters, controls];
 }
 
-type PartProps = { ctxs: PointContext[]; nameA: string; nameB: string };
+type PartProps = { ctxs: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; records?: MatchContexts[] };
 
-export function ServeStatistics({ match, ctxs, nameA, nameB }: PartProps & { match: Match }) {
-  const props = { ctxs, nameA, nameB };
+export function ServeStatistics({ match, ...props }: PartProps & { match: Match }) {
   return <>
     <LocationDistribution {...props} />
     <ServePerformancePart {...props} />
@@ -174,21 +171,21 @@ export function ServeLocationImpact(props: PartProps) {
   </>;
 }
 
-function LocationOutcomeView({ ctxs, nameA, nameB, mode }: PartProps & { mode: 'bars' | 'heatmap' }) {
-  const [players, setPlayers] = useState<Side[]>([]);
+function LocationOutcomeView({ ctxs, nameA, nameB, playerOnly = false, mode }: PartProps & { mode: 'bars' | 'heatmap' }) {
+  const [player, setPlayer] = useState<Side>('A');
   const [set, setSet] = useState<number | All>('all');
   const [side, setSide] = useState<'deuce' | 'ad' | All>('all');
   const [keyPoint, setKeyPoint] = useState<KeyPoint | All>('all');
   const [kind, setKind] = useState<ServeKind | All>('all');
   const names = { A: nameA, B: nameB };
   const sets = setOptions(ctxs).map((option) => ({ value: option.index as number | All, label: option.label }));
-  const displayed: Side[] = players.length ? players : ['A', 'B'];
+  const displayed: Side[] = [player];
   const title = mode === 'bars' ? 'Point-Win-Rate Bars' : 'Court-Side Heatmap';
   return <div className="location-outcome-view" role="group" aria-label={title}>
     <h4>{title}</h4>
-    <OptionalChips label="Location impact player" options={(['A', 'B'] as const).map((value) => ({ value, label: names[value] }))}
-      value={players} onChange={setPlayers} />
-    {sets.length > 0 && <PickChips label="Set" options={sets.length > 1 ? [{ value: 'all', label: 'All sets' }, ...sets] : sets}
+    {!playerOnly && <PickChips label="Location impact player" options={(['A', 'B'] as const).map((value) => ({ value, label: names[value] }))}
+      value={player} onChange={setPlayer} />}
+    {!playerOnly && sets.length > 0 && <PickChips label="Set" options={sets.length > 1 ? [{ value: 'all', label: 'All sets' }, ...sets] : sets}
       value={sets.length === 1 ? sets[0].value : set} onChange={setSet} />}
     {mode === 'bars' && <PickChips label="Court side" value={side} onChange={setSide}
       options={[{ value: 'all', label: 'All sides' }, { value: 'deuce', label: 'Deuce' }, { value: 'ad', label: 'Ad' }]} />}
@@ -267,20 +264,24 @@ function LocationOutcomeView({ ctxs, nameA, nameB, mode }: PartProps & { mode: '
   </div>;
 }
 
-export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & { match: Match }) {
+export function FirstServeRateImpact({ match, ctxs, nameA, nameB, playerOnly = false, records }: PartProps & { match: Match }) {
   const [chartPlayer, setChartPlayer] = useState<Side[]>([]);
   const [bandPlayer, setBandPlayer] = useState<Side[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const names = { A: nameA, B: nameB };
-  const options = (['A', 'B'] as const).map((value) => ({ value, label: names[value] }));
-  const games = firstServeGames(match, ctxs);
-  const chartGames = games.filter((game) => chartPlayer.length === 0 || chartPlayer.includes(game.server));
-  const chartPlayers: Side[] = chartPlayer.length ? chartPlayer : ['A', 'B'];
+  const options = (playerOnly ? ['A'] as const : ['A', 'B'] as const).map((value) => ({ value, label: names[value] }));
+  const sources = records ? [...records].sort((left, right) => matchDayKey(left.match) - matchDayKey(right.match) ||
+    matchSortKey(left.match) - matchSortKey(right.match) || left.match.id.localeCompare(right.match.id)) : [{ match, contexts: ctxs }];
+  const games = sources.flatMap((source, index) => firstServeGames(source.match, source.contexts).map((game) => ({ ...game,
+    matchId: source.match.id, matchNumber: index + 1,
+    matchLabel: `Match ${index + 1}${formatMatchDay(source.match) ? ` (${formatMatchDay(source.match)})` : ''}` })));
+  const chartGames = games.filter((game) => playerOnly ? game.server === 'A' : chartPlayer.length === 0 || chartPlayer.includes(game.server));
+  const chartPlayers: Side[] = playerOnly ? ['A'] : chartPlayer.length ? chartPlayer : ['A', 'B'];
   const thresholds = chartPlayers.flatMap((player) => firstServeHoldThresholds(games, player).map((threshold) => ({ ...threshold, player })));
-  const players: Side[] = bandPlayer.length ? bandPlayer : ['A', 'B'];
+  const players: Side[] = playerOnly ? ['A'] : bandPlayer.length ? bandPlayer : ['A', 'B'];
   const bands = players.map((player) => firstServeBands(games, player));
-  const gameLabel = (game: typeof games[number]) => `Set ${game.set + 1}, game ${game.game}`;
-  const gameKey = (game: typeof games[number]) => `${game.set}:${game.game}`;
+  const gameLabel = (game: typeof games[number]) => `${records ? `${game.matchLabel}, ` : ''}Set ${game.set + 1}, game ${game.game}`;
+  const gameKey = (game: typeof games[number]) => `${game.matchId}:${game.set}:${game.game}`;
   const detail = chartGames.find((game) => gameKey(game) === selected);
   const width = Math.max(360, chartGames.length * 56 + 64);
   const bandSummary = (player: Side) => {
@@ -291,7 +292,7 @@ export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & 
   return <>
     <h3>First serve rate impact</h3>
     <h4>Game-by-Game Chart</h4>
-    <OptionalChips label="Chart player" options={options} value={chartPlayer} onChange={setChartPlayer} />
+    {!playerOnly && <OptionalChips label="Chart player" options={options} value={chartPlayer} onChange={setChartPlayer} />}
     <div className="serve-impact-legend">
       {options.filter((option) => chartPlayer.length === 0 || chartPlayer.includes(option.value)).map((option) =>
         <span key={option.value} className={`serve-player-${option.value}`}>{option.label}</span>)}
@@ -316,7 +317,8 @@ export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & 
             const vertical = 220 - (game.firstIn / Math.max(1, game.attempts)) * 180;
             const label = `${gameLabel(game)}, ${names[game.server]}, ${game.held ? 'Held' : 'Broken'}, ${ratio(game.firstIn, game.attempts)}`;
             return <g key={gameKey(game)}>
-              <text x={horizontal} y={247} textAnchor="middle">S{game.set + 1} G{game.game}</text>
+              <text x={horizontal} y={247} textAnchor="middle">{records && <tspan x={horizontal}>M{game.matchNumber}</tspan>}
+                <tspan x={horizontal} dy={records ? 17 : 0}>S{game.set + 1} G{game.game}</tspan></text>
               {completeFirstServeGame(game) ? <g role="button" tabIndex={0} aria-label={label}
                 aria-pressed={selected === gameKey(game)} className={`serve-chart-point serve-player-${game.server}`}
                 onClick={() => setSelected(gameKey(game))} onKeyDown={(event) => {
@@ -348,7 +350,7 @@ export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & 
       </details>
     </>}
     <h4>Hold Rate by First-Serve Threshold</h4>
-    <OptionalChips label="Band table player" options={options} value={bandPlayer} onChange={setBandPlayer} />
+    {!playerOnly && <OptionalChips label="Band table player" options={options} value={bandPlayer} onChange={setBandPlayer} />}
     <Table head={['First serves in', ...players.map((player) => names[player])]}
       rows={[
         ...bands[0].map((band, index) => [band.label, ...bands.map((playerBands) => ratio(playerBands[index].held, playerBands[index].played))]),
@@ -366,8 +368,8 @@ export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & 
   </>;
 }
 
-function LocationDistribution({ ctxs, nameA, nameB }: PartProps) {
-  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point']);
+function LocationDistribution({ ctxs, nameA, nameB, playerOnly }: PartProps) {
+  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point'], playerOnly);
   const dist = serveDistribution(ctxs, f);
   const typeTotal = (t: ServeKind) => LOCATION_ROWS.reduce((n, l) => n + dist[l.value][t], 0);
   const locationTotal = (l: ServeSpot) => TYPE_COLUMNS.reduce((n, t) => n + dist[l][t.value], 0);
@@ -387,8 +389,8 @@ function LocationDistribution({ ctxs, nameA, nameB }: PartProps) {
   </>;
 }
 
-function ServePerformancePart({ ctxs, nameA, nameB }: PartProps) {
-  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point', 'location']);
+function ServePerformancePart({ ctxs, nameA, nameB, playerOnly }: PartProps) {
+  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point', 'location'], playerOnly);
   return <>
     <h3>Serve performance</h3>
     {controls}
@@ -396,8 +398,8 @@ function ServePerformancePart({ ctxs, nameA, nameB }: PartProps) {
   </>;
 }
 
-function ServeImpactPart({ ctxs, nameA, nameB }: PartProps) {
-  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point', 'location']);
+function ServeImpactPart({ ctxs, nameA, nameB, playerOnly }: PartProps) {
+  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point', 'location'], playerOnly);
   const impact = serveImpactStats(ctxs, f);
   const n = Object.values(impact).reduce((sum, r) => sum + r.points, 0);
   const impactRow = (label: ReactNode, { points, won }: { points: number; won: number }): ReactNode[] =>
@@ -438,8 +440,8 @@ function ServeImpactPart({ ctxs, nameA, nameB }: PartProps) {
   </>;
 }
 
-function FaultsPart({ ctxs, nameA, nameB }: PartProps) {
-  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point']);
+function FaultsPart({ ctxs, nameA, nameB, playerOnly }: PartProps) {
+  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt', 'point'], playerOnly);
   const faults = serveFaults(ctxs, f);
   const faultTypes = [...(['net', 'long', 'wide'] as const).map((v) => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })),
     { value: 'none' as const, label: 'Not recorded' }];
@@ -456,26 +458,26 @@ function FaultsPart({ ctxs, nameA, nameB }: PartProps) {
   </>;
 }
 
-function ServingSummary({ match, ctxs, nameA, nameB }: PartProps & { match: Match }) {
-  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt']);
-  const held = serviceGamesHeld(match, ctxs, f);
-  const bp = breakPointsSaved(ctxs, f);
-  const repeats = locationRepeats(ctxs, f);
+function ServingSummary({ match, ctxs, nameA, nameB, playerOnly, records }: PartProps & { match: Match }) {
+  const [f, controls] = useServeFilters(ctxs, nameA, nameB, ['side', 'attempt'], playerOnly);
+  const total = servingTotals(records ?? [{ match, contexts: ctxs }], f);
   return <>
     <h3>Serving summary</h3>
     {controls}
     <Table
       head={['', 'Result']}
       rows={[
-        ['Service games held', ratio(held.held, held.played)],
-        ['Break points saved', ratio(bp.saved, bp.faced)],
-        ['Location repeats', ratio(repeats.repeats, repeats.compared)],
+        ['Service games held', ratio(total.held, total.played)],
+        ['Break points saved', ratio(total.saved, total.faced)],
+        ['Location repeats', ratio(total.repeats, total.compared)],
       ]}
     />
     <p className="muted small">
-      Service games held: completed regular service games (Player and Set only). Break points saved: Player, Set and Court side.
-      Location repeats: serves at the same location as the previous serve on the same side with the same serve number, within the
-      selected set or through the whole match (Player, Set, Court side and Serve attempt).
+      {playerOnly ? 'Service games held: completed regular service games, pooled across selected matches. Break points saved: Court side filter.'
+        : 'Service games held: completed regular service games (Player and Set only). Break points saved: Player, Set and Court side.'}
+      {' '}Location repeats: serves at the same location as the previous serve on the same side with the same serve number,
+      {playerOnly ? ' resetting at each match boundary (Court side and Serve attempt).'
+        : ' within the selected set or through the whole match (Player, Set, Court side and Serve attempt).'}
     </p>
   </>;
 }

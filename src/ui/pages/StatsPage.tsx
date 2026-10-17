@@ -7,6 +7,7 @@ import { finalisationLabel } from '../../model/match';
 import { db, isLive, pointsForMatch } from '../../storage/db';
 import { useAllPlayers, usePlayerNames } from '../hooks';
 import { canShareStats, useUser } from '../user';
+import { servingTotals, type MatchContexts } from '../../stats/playerStats';
 import {
   breakPointsSaved,
   errorDirectionStats,
@@ -167,8 +168,8 @@ function SetChips({ options, value, onChange }: { options: SetOption[]; value: n
 }
 
 /** With `match`, adds Service games won and Break points saved rows (Advanced Analysis only). */
-export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showSets = true, match }: {
-  contexts: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; showSets?: boolean; match?: Match;
+export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showSets = true, match, matchContexts }: {
+  contexts: PointContext[]; nameA: string; nameB: string; playerOnly?: boolean; showSets?: boolean; match?: Match; matchContexts?: MatchContexts[];
 }) {
   const [sets, setSets] = useState<number[]>([]);
   const sum = summary(filterSets(contexts, sets));
@@ -190,9 +191,9 @@ export function SummaryStats({ contexts, nameA, nameB, playerOnly = false, showS
       ['1st serve in', ...both((side) => ratio(sum[side].firstServe.in, sum[side].firstServe.served))],
       ['1st serve pts won', ...both((side) => ratio(sum[side].firstServe.won, sum[side].firstServe.in))],
       ['2nd serve pts won', ...both((side) => ratio(sum[side].secondServe.won, sum[side].secondServe.served))],
-      ...(match ? [
+      ...(match || matchContexts ? [
         ['Service games won', ...both((side) => {
-          const { held, played } = serviceGamesHeld(match, contexts, serving(side));
+          const { held, played } = matchContexts ? servingTotals(matchContexts, serving(side)) : serviceGamesHeld(match!, contexts, serving(side));
           return ratio(held, played);
         })],
         ['Break points saved', ...both((side) => {
@@ -235,8 +236,8 @@ export default function StatsPage({ id, returnTo }: { id: string; returnTo?: str
   />;
 }
 
-export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, controls, footer, contexts, aggregate, playerOnly = false }: PublicStats & {
-  back?: string; sharing?: ReactNode; controls?: ReactNode; footer?: ReactNode; contexts?: PointContext[]; aggregate?: string; playerOnly?: boolean;
+export function StatsView({ match, points, nameA: a, nameB: b, back = '/', sharing, controls, footer, contexts, aggregate, playerOnly = false, matchContexts }: PublicStats & {
+  back?: string; sharing?: ReactNode; controls?: ReactNode; footer?: ReactNode; contexts?: PointContext[]; aggregate?: string; playerOnly?: boolean; matchContexts?: MatchContexts[];
 }) {
   const [server, setServer] = useState<Side>('A');
   const [serveSides, setServeSides] = useState<('deuce' | 'ad')[]>([]);
@@ -293,7 +294,7 @@ export function StatsView({ match, points, nameA: a, nameB: b, back = '/', shari
         {sharing}
 
         <h2>Summary</h2>
-        <SummaryStats contexts={ctxs} nameA={a} nameB={b} playerOnly={playerOnly} showSets={!contexts} />
+        <SummaryStats contexts={ctxs} nameA={a} nameB={b} playerOnly={playerOnly} showSets={!contexts} matchContexts={matchContexts} />
 
         <h2>Serve performance</h2>
         {setChips('serve')}

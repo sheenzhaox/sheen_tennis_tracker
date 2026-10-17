@@ -23,7 +23,7 @@ const stats = (points: Point[]) => renderToStaticMarkup(
 );
 
 describe('rally shot options and stats', () => {
-  it('shows both players in location bars and court heatmaps with final-attempt outcomes', () => {
+  it('requires one player in location bars and court heatmaps with final-attempt outcomes', () => {
     const recorded: Point[] = [{ ...point('slice'), serves: [{ result: 'ace', location: 'wide', type: 'flat' }], end: 'ace' },
       { ...point('slice'), id: 'double', seq: 1, end: 'double_fault', winner: 'B',
         serves: [{ result: 'fault', location: 'wide', type: 'flat' }, { result: 'fault', location: 'none', type: 'none' }] },
@@ -37,8 +37,9 @@ describe('rally shot options and stats', () => {
     expect(html).toContain('aria-label="Ad Body: 0/1 (0%)"');
     expect(html).toContain('aria-label="Deuce T: -"');
     expect(html).toContain('defaulted location (Body): 1; defaulted type (Flat): 1.');
-    expect(html).toContain('No eligible recorded service points.');
-    expect(html.match(/aria-pressed="false">(?:Alice|Bob)<\/button>/g)).toHaveLength(4);
+    expect(html).not.toContain('aria-label="Bob location outcomes"');
+    expect(html.match(/aria-pressed="true">Alice<\/button>/g)).toHaveLength(2);
+    expect(html.match(/aria-pressed="false">Bob<\/button>/g)).toHaveLength(2);
     expect(html).toContain('Point-win-rate colour scale: 0% to 100%');
   });
 
@@ -76,7 +77,7 @@ describe('rally shot options and stats', () => {
     expect(tables[0]).toContain('<th>Service games won</th><td>-</td><td>-</td>');
     expect(tables[0]).toContain('<th>Break points saved</th><td>-</td><td>-</td>');
     expect(normal).not.toContain('Service games won');
-    expect(tables).toHaveLength(9);
+    expect(tables).toHaveLength(8);
     // Lucky ball and manual points are excluded: 2 service points (Serve + 1 rally and double fault).
     expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
     expect(tables[3]).toContain('<th><strong>Serve in control</strong></th><td>1</td><td>50%</td><td>1</td><td>100%</td>');

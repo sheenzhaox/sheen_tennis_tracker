@@ -6,6 +6,7 @@ import { db, matchesForPlayer, pointsForMatch } from '../../storage/db';
 import { playerStats } from '../../stats/playerStats';
 import { summary } from '../../stats/matchStats';
 import { UserContext } from '../user';
+import { FirstServeRateImpact, ServeStatistics } from './AdvancedAnalysisPage';
 import PlayerStatsPage, { completedPlayerMatches, PlayerStatsControls, selectPlayerMatches } from './PlayerStatsPage';
 
 const state = vi.hoisted(() => ({ data: undefined as unknown, query: undefined as (() => unknown) | undefined }));
@@ -100,6 +101,31 @@ describe('completed player-match filtering', () => {
 });
 
 describe('player stats presentation and access', () => {
+  it('labels games across matches chronologically and shows only the selected player in every advanced part', () => {
+    const latest = match('latest', '2026-10-09', { playerAId: 'opponent', playerBId: player.id, firstServer: 'B' });
+    const older = match('older', '2026-10-08', { firstServer: 'A' });
+    const records = [latest, older].map((record) => ({ match: record, points: Array.from({ length: 4 }, (_, seq): Point => ({
+      id: `${record.id}-${seq}`, matchId: record.id, seq, server: record.firstServer!, winner: record.firstServer!, end: 'ace',
+      serves: [{ result: 'ace', location: 'wide', type: 'flat' }], createdAt: 1, updatedAt: 1,
+    })) }));
+    const stats = playerStats(player.id, records);
+    const props = { match: stats.records[0].match, ctxs: stats.contexts, records: stats.records,
+      nameA: player.name, nameB: 'Opponent', playerOnly: true };
+    const html = renderToStaticMarkup(<ServeStatistics {...props} />);
+    expect(html).toContain('<th>Service games held</th><td>2/2 (100%)</td>');
+    expect(html).toContain('Wide: 8/8 (100%); overall 100%');
+    expect(html).toContain('defaulted location (Body): 0; defaulted type (Flat): 0.');
+    expect(html).not.toContain('Opponent');
+    expect(html).not.toContain('aria-label="Player"');
+    expect(html).not.toContain('aria-label="Set"');
+    expect(html).not.toContain(`>${player.name}</button>`);
+    const chart = renderToStaticMarkup(<FirstServeRateImpact {...props} />);
+    expect(chart.indexOf('Match 1 (')).toBeLessThan(chart.indexOf('Match 2 ('));
+    expect(chart).toMatch(/Match 1 \([^)]*8[^)]*\), Set 1, game 1/);
+    expect(chart).toContain('<th>80%+</th><td>2/2 (100%)</td>');
+    expect(chart).toContain('P75: 100%, 2/2 (100%) held');
+  });
+
   it('shows all five period choices and retains them when there are no completed matches', () => {
     state.data = { player, records: [] };
     const html = render();
@@ -131,6 +157,13 @@ describe('player stats presentation and access', () => {
     expect(html).toContain('<th>Linked Player</th>');
     expect(html).not.toContain('>Linked Player</button>');
     expect(html).toContain('<th>Net</th><th>Long</th><th>Wide</th><th>Total</th>');
+    for (const heading of ['Advanced Statistics', 'Location distribution', 'Serve impact', 'Faults', 'Serving summary',
+      'First serve rate impact', 'Serve location impact', 'Point-Win-Rate Bars', 'Court-Side Heatmap']) expect(html).toContain(heading);
+    expect(html).toContain('<th>Service games won</th><td>-</td>');
+    expect(html).toContain('<th>Break points saved</th><td>-</td>');
+    expect(html).not.toContain('aria-label="Set"');
+    expect(html).not.toContain('aria-label="Location impact player"');
+    expect(html).not.toContain('aria-label="Chart player"');
   });
 
   it.each([0, 5, 6, 20])('bounds the custom list only above five matches (%s matches)', (count) => {

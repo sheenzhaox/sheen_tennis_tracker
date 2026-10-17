@@ -8,6 +8,7 @@ import { canViewPlayerStats, useUser } from '../user';
 import { usePlayerNames } from '../hooks';
 import { formatMatchDay, matchDayKey, matchSortKey } from '../format';
 import { StatsView } from './StatsPage';
+import { ServeStatistics } from './AdvancedAnalysisPage';
 
 export const PLAYER_STATS_PERIODS = [
   { value: 'last', label: 'Last match' },
@@ -115,6 +116,11 @@ export default function PlayerStatsPage({ id, back = `/players/${id}` }: { id: s
     </main>
   </>;
   return <StatsView key={id} match={records[0].match} points={stats.contexts.map((context) => context.point)} controls={controls}
-    nameA={player.name} nameB="Opponents (combined)" playerOnly back={back} contexts={stats.contexts}
+    nameA={player.name} nameB="Opponents (combined)" playerOnly back={back} contexts={stats.contexts} matchContexts={stats.records}
+    footer={<section className="advanced-analysis" aria-labelledby="player-advanced-stats">
+      <h2 id="player-advanced-stats">Advanced Statistics</h2>
+      <ServeStatistics match={stats.records[0].match} ctxs={stats.contexts} nameA={player.name} nameB="Opponents (combined)"
+        playerOnly records={stats.records} />
+    </section>}
     aggregate={`${stats.matches} completed ${stats.matches === 1 ? 'match' : 'matches'} · ${stats.wins} wins · ${stats.losses} losses${stats.undecided ? ` · ${stats.undecided} completed without a recorded winner` : ''}`} />;
 }
