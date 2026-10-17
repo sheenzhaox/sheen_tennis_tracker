@@ -804,6 +804,189 @@ legend {
 }
 
 /* Stats */
+.location-outcome-view {
+  margin-bottom: 1.5rem;
+}
+
+.location-player h5,
+.location-attempt h6 {
+  font-size: 1rem;
+  margin: 1rem 0 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.location-attempts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.location-attempt {
+  min-width: 0;
+}
+
+.location-bar-row {
+  margin: 0.75rem 0;
+}
+
+.location-bar-label,
+.location-bar-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.location-bar-track {
+  position: relative;
+  height: 18px;
+  margin-top: 0.25rem;
+  background: #edf0f1;
+}
+
+.location-bar-fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+}
+
+.location-bar-reference {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-left: 2px dashed #172b2a;
+  transform: translateX(-1px);
+}
+
+.location-heat-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.location-heat-scale {
+  width: 120px;
+  height: 12px;
+  background: linear-gradient(to right, hsl(174 45% 95%), hsl(174 45% 50%));
+}
+
+.location-no-data-key,
+.location-no-data {
+  background: #edf0f1;
+  color: #58666d;
+}
+
+.location-no-data-key {
+  padding: 0.15rem 0.4rem;
+}
+
+.location-net {
+  text-align: center;
+  border-top: 3px double #58666d;
+  padding-top: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.location-court {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid #58666d;
+}
+
+.location-court > div + div {
+  border-left: 2px solid #58666d;
+}
+
+.location-court-label {
+  text-align: center;
+  padding: 0.3rem;
+}
+
+.location-service-box {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.location-heat-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 88px;
+  border-top: 1px solid #fff;
+  border-right: 1px solid #fff;
+  color: #172b2a;
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.first-serve-chart-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.first-serve-chart-scroll svg {
+  display: block;
+  font: inherit;
+  font-size: 11px;
+}
+
+.serve-chart-grid {
+  stroke: #dce2e5;
+}
+
+.serve-impact-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.serve-impact-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.serve-threshold-line {
+  stroke: currentColor;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.serve-threshold-75 {
+  stroke-dasharray: 2 5;
+}
+
+.serve-threshold-summary {
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.serve-player-A {
+  color: #007b83;
+}
+
+.serve-player-B {
+  color: #b34718;
+}
+
+.serve-chart-point {
+  cursor: pointer;
+}
+
+.serve-chart-point:focus,
+.serve-chart-point[aria-pressed="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.first-serve-detail {
+  min-height: 3rem;
+  overflow-wrap: anywhere;
+}
+
 .stats h2 {
   margin-top: 1.75rem;
 }

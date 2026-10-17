@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Check, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Header from '../components/Header';
 import { db, isLive, pointsForMatch } from '../../storage/db';
@@ -9,11 +10,16 @@ import { finalisationLabel } from '../../model/match';
 import { SERVE_LOCATIONS, SERVE_TYPES, type Match, type Point, type Side } from '../../model/types';
 import {
   breakPointsSaved,
+  completeFirstServeGame,
+  firstServeBands,
+  firstServeGames,
+  firstServeHoldThresholds,
   locationRepeats,
   pointContexts,
   serveDistribution,
   serveFaults,
   serveImpactStats,
+  serveLocationImpact,
   servePerformance,
   serviceGamesHeld,
   setOptions,
@@ -24,7 +30,7 @@ import {
   type ServeKind,
   type ServeSpot,
 } from '../../stats/matchStats';
-import { KEY_POINTS, ServePerformanceTable, SummaryStats, Table } from './StatsPage';
+import { KEY_POINTS, OptionalChips, ServePerformanceTable, SummaryStats, Table } from './StatsPage';
 
 export default function AdvancedAnalysisPage({ id, returnTo }: { id: string; returnTo?: string | null }) {
   const match = useLiveQuery(async () => {
@@ -151,6 +157,212 @@ export function ServeStatistics({ match, ctxs, nameA, nameB }: PartProps & { mat
     <ServeImpactPart {...props} />
     <FaultsPart {...props} />
     <ServingSummary match={match} {...props} />
+    <FirstServeRateImpact match={match} {...props} />
+    <ServeLocationImpact {...props} />
+  </>;
+}
+
+export function ServeLocationImpact(props: PartProps) {
+  return <>
+    <h3>Serve location impact</h3>
+    <LocationOutcomeView {...props} mode="bars" />
+    <LocationOutcomeView {...props} mode="heatmap" />
+    <p className="muted small">Point wins / recorded service points, attributed to the final attempt; double faults count as second-serve losses.
+      First-serve results exclude first faults followed by second serves. Lucky, manual and missing-serve points are excluded;
+      tiebreak points are included. Missing location counts as Body and missing type as Flat; defaulted counts are shown.
+      Observed associations, not causal effects or game/match-win predictions. Small samples limit comparisons.</p>
+  </>;
+}
+
+function LocationOutcomeView({ ctxs, nameA, nameB, mode }: PartProps & { mode: 'bars' | 'heatmap' }) {
+  const [players, setPlayers] = useState<Side[]>([]);
+  const [set, setSet] = useState<number | All>('all');
+  const [side, setSide] = useState<'deuce' | 'ad' | All>('all');
+  const [keyPoint, setKeyPoint] = useState<KeyPoint | All>('all');
+  const [kind, setKind] = useState<ServeKind | All>('all');
+  const names = { A: nameA, B: nameB };
+  const sets = setOptions(ctxs).map((option) => ({ value: option.index as number | All, label: option.label }));
+  const displayed: Side[] = players.length ? players : ['A', 'B'];
+  const title = mode === 'bars' ? 'Point-Win-Rate Bars' : 'Court-Side Heatmap';
+  return <div className="location-outcome-view" role="group" aria-label={title}>
+    <h4>{title}</h4>
+    <OptionalChips label="Location impact player" options={(['A', 'B'] as const).map((value) => ({ value, label: names[value] }))}
+      value={players} onChange={setPlayers} />
+    {sets.length > 0 && <PickChips label="Set" options={sets.length > 1 ? [{ value: 'all', label: 'All sets' }, ...sets] : sets}
+      value={sets.length === 1 ? sets[0].value : set} onChange={setSet} />}
+    {mode === 'bars' && <PickChips label="Court side" value={side} onChange={setSide}
+      options={[{ value: 'all', label: 'All sides' }, { value: 'deuce', label: 'Deuce' }, { value: 'ad', label: 'Ad' }]} />}
+    <PickChips label="Key points" value={keyPoint} onChange={setKeyPoint}
+      options={[{ value: 'all', label: 'All points' }, ...KEY_POINTS]} />
+    <PickChips label="Serve type" value={kind} onChange={setKind}
+      options={[{ value: 'all', label: 'All types' }, ...SERVE_TYPES
+        .map((option) => ({ value: option.value as ServeKind | All, label: option.label }))]} />
+    {mode === 'heatmap' && <div className="location-heat-legend small" aria-label="Point-win-rate colour scale: 0% to 100%">
+      <span>0%</span><span className="location-heat-scale" /><span>100%</span><span className="location-no-data-key">No data</span>
+    </div>}
+    {displayed.map((server) => {
+      const cells = serveLocationImpact(ctxs, { server, sets: only(set), sides: only(side), attempts: [],
+        keyPoints: only(keyPoint), locations: [] }, only(kind));
+      const total = cells.reduce((count, cell) => count + cell.played, 0);
+      const defaultLocation = cells.reduce((count, cell) => count + cell.defaultLocation, 0);
+      const defaultType = cells.reduce((count, cell) => count + cell.defaultType, 0);
+      return <div key={server} className="location-player" role="group" aria-label={`${names[server]} location outcomes`}>
+        <h5 className={`serve-player-${server}`}>{names[server]}</h5>
+        {total === 0 && <p role="status">No eligible recorded service points.</p>}
+        <div className="location-attempts">
+          {([1, 2] as const).map((attempt) => {
+            const sample = cells.filter((cell) => cell.attempt === attempt);
+            const played = sample.reduce((count, cell) => count + cell.played, 0);
+            const won = sample.reduce((count, cell) => count + cell.won, 0);
+            const overall = played ? won / played : 0;
+            return <div key={attempt} className="location-attempt" role="group" aria-label={`${attempt === 1 ? '1st' : '2nd'} serve`}>
+              <h6>{attempt === 1 ? '1st' : '2nd'} serve</h6>
+              <p className="small">Overall: {ratio(won, played)}</p>
+              {mode === 'bars' ? <>
+                {LOCATION_ROWS.map((location) => {
+                  const rows = sample.filter((cell) => cell.location === location.value);
+                  const locationPlayed = rows.reduce((count, cell) => count + cell.played, 0);
+                  const locationWon = rows.reduce((count, cell) => count + cell.won, 0);
+                  return <div className="location-bar-row" key={location.value}>
+                    <div className="location-bar-label"><span>{location.label}</span><span>{ratio(locationWon, locationPlayed)}</span></div>
+                    <div className={`location-bar-track serve-player-${server}`} role="img"
+                      aria-label={`${location.label}: ${ratio(locationWon, locationPlayed)}; overall ${pct(won, played)}`}>
+                      <span className="location-bar-fill" style={{ width: `${locationPlayed ? locationWon / locationPlayed * 100 : 0}%` }} />
+                      {played > 0 && <span className="location-bar-reference" style={{ left: `${overall * 100}%` }} />}
+                    </div>
+                  </div>;
+                })}
+                <div className="location-bar-axis small"><span>0%</span><span>50%</span><span>100%</span></div>
+                <p className="muted small">Dashed marker: overall point-win rate</p>
+              </> : <>
+                <p className="location-net small">Net (server's view)</p>
+                <div className="location-court">
+                  {(['deuce', 'ad'] as const).map((courtSide) => <div key={courtSide}>
+                    <div className="location-court-label small">{courtSide === 'deuce' ? 'Deuce' : 'Ad'}</div>
+                    <div className="location-service-box">
+                      {(courtSide === 'deuce' ? LOCATION_ROWS : [...LOCATION_ROWS].reverse()).map((location) => {
+                        const cell = sample.find((row) => row.side === courtSide && row.location === location.value)!;
+                        const rate = cell.played ? cell.won / cell.played : null;
+                        return <div key={location.value} className={`location-heat-cell${rate === null ? ' location-no-data' : ''}`}
+                          style={rate === null ? undefined : { backgroundColor: `hsl(174 45% ${95 - rate * 45}%)` }}
+                          aria-label={`${courtSide === 'deuce' ? 'Deuce' : 'Ad'} ${location.label}: ${ratio(cell.won, cell.played)}`}>
+                          <strong>{location.label}</strong><span>{cell.played ? `${cell.won}/${cell.played}` : '-'}</span><span>{pct(cell.won, cell.played)}</span>
+                        </div>;
+                      })}
+                    </div>
+                  </div>)}
+                </div>
+              </>}
+            </div>;
+          })}
+        </div>
+        <p className="muted small">{total} eligible points; defaulted location (Body): {defaultLocation}; defaulted type (Flat): {defaultType}.</p>
+        {mode === 'heatmap' && <details><summary>Location outcome details</summary>
+          <Table head={['Serve', 'Court side', 'Location', 'Won / points', 'Default Body', 'Default Flat']}
+            rows={cells.map((cell) => [cell.attempt === 1 ? '1st' : '2nd', cell.side === 'deuce' ? 'Deuce' : 'Ad',
+              LOCATION_ROWS.find((location) => location.value === cell.location)!.label, ratio(cell.won, cell.played), cell.defaultLocation, cell.defaultType])} />
+        </details>}
+      </div>;
+    })}
+  </div>;
+}
+
+export function FirstServeRateImpact({ match, ctxs, nameA, nameB }: PartProps & { match: Match }) {
+  const [chartPlayer, setChartPlayer] = useState<Side[]>([]);
+  const [bandPlayer, setBandPlayer] = useState<Side[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const names = { A: nameA, B: nameB };
+  const options = (['A', 'B'] as const).map((value) => ({ value, label: names[value] }));
+  const games = firstServeGames(match, ctxs);
+  const chartGames = games.filter((game) => chartPlayer.length === 0 || chartPlayer.includes(game.server));
+  const chartPlayers: Side[] = chartPlayer.length ? chartPlayer : ['A', 'B'];
+  const thresholds = chartPlayers.flatMap((player) => firstServeHoldThresholds(games, player).map((threshold) => ({ ...threshold, player })));
+  const players: Side[] = bandPlayer.length ? bandPlayer : ['A', 'B'];
+  const bands = players.map((player) => firstServeBands(games, player));
+  const gameLabel = (game: typeof games[number]) => `Set ${game.set + 1}, game ${game.game}`;
+  const gameKey = (game: typeof games[number]) => `${game.set}:${game.game}`;
+  const detail = chartGames.find((game) => gameKey(game) === selected);
+  const width = Math.max(360, chartGames.length * 56 + 64);
+  const bandSummary = (player: Side) => {
+    const sample = games.filter((game) => game.server === player);
+    const eligible = sample.filter(completeFirstServeGame);
+    return `${names[player]}: ${eligible.length} eligible games; ${sample.length - eligible.length} omitted`;
+  };
+  return <>
+    <h3>First serve rate impact</h3>
+    <h4>Game-by-Game Chart</h4>
+    <OptionalChips label="Chart player" options={options} value={chartPlayer} onChange={setChartPlayer} />
+    <div className="serve-impact-legend">
+      {options.filter((option) => chartPlayer.length === 0 || chartPlayer.includes(option.value)).map((option) =>
+        <span key={option.value} className={`serve-player-${option.value}`}>{option.label}</span>)}
+      <span><Check size={18} aria-hidden="true" /> Held</span><span><X size={18} aria-hidden="true" /> Broken</span>
+      <span><svg width={28} height={12} aria-hidden="true"><line x1={0} x2={28} y1={6} y2={6} className="serve-threshold-line serve-threshold-75" /></svg> P75</span>
+    </div>
+    {chartGames.length === 0 ? <p role="status">No completed regular service games.</p> : <>
+      <div className="first-serve-chart-scroll" role="region" aria-label="First-serve game chart" tabIndex={0}>
+        <svg width={width} height={280} viewBox={`0 0 ${width} 280`} role="group" aria-label="First serves in by service game">
+          {[0, 25, 50, 75, 100].map((value) => <g key={value}>
+            <line x1={48} x2={width - 16} y1={220 - value * 1.8} y2={220 - value * 1.8} className="serve-chart-grid" />
+            <text x={40} y={224 - value * 1.8} textAnchor="end">{value}%</text>
+          </g>)}
+          {thresholds.map((threshold) => threshold.cutoff !== null && <line key={`${threshold.player}:${threshold.target}`}
+            x1={48} x2={width - 16} y1={220 - threshold.cutoff * 180} y2={220 - threshold.cutoff * 180}
+            className={`serve-threshold-line serve-threshold-${threshold.target * 100} serve-player-${threshold.player}`}
+            aria-label={`${names[threshold.player]} P${threshold.target * 100}: ${pct(threshold.cutoff, 1)}, ${ratio(threshold.held, threshold.played)} held`}>
+            <title>{names[threshold.player]} P{threshold.target * 100}: {pct(threshold.cutoff, 1)}, {ratio(threshold.held, threshold.played)} held</title>
+          </line>)}
+          {chartGames.map((game, index) => {
+            const horizontal = 76 + index * ((width - 112) / Math.max(1, chartGames.length - 1));
+            const vertical = 220 - (game.firstIn / Math.max(1, game.attempts)) * 180;
+            const label = `${gameLabel(game)}, ${names[game.server]}, ${game.held ? 'Held' : 'Broken'}, ${ratio(game.firstIn, game.attempts)}`;
+            return <g key={gameKey(game)}>
+              <text x={horizontal} y={247} textAnchor="middle">S{game.set + 1} G{game.game}</text>
+              {completeFirstServeGame(game) ? <g role="button" tabIndex={0} aria-label={label}
+                aria-pressed={selected === gameKey(game)} className={`serve-chart-point serve-player-${game.server}`}
+                onClick={() => setSelected(gameKey(game))} onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(gameKey(game)); }
+                }}>
+                <title>{label}</title>
+                <rect x={horizontal - 22} y={vertical - 22} width={44} height={44} fill="transparent" />
+                {game.held ? <Check x={horizontal - 10} y={vertical - 10} width={20} height={20} strokeWidth={3} aria-hidden="true" />
+                  : <X x={horizontal - 10} y={vertical - 10} width={20} height={20} strokeWidth={3} aria-hidden="true" />}
+              </g> : <text x={horizontal} y={235} textAnchor="middle">-</text>}
+            </g>;
+          })}
+        </svg>
+      </div>
+      <ul className="serve-threshold-summary small" aria-label="Observed hold-rate thresholds">
+        {thresholds.map((threshold) => <li key={`${threshold.player}:${threshold.target}`} className={`serve-player-${threshold.player}`}>
+          {names[threshold.player]} P{threshold.target * 100}: {threshold.cutoff === null ? 'Not reached'
+            : `${pct(threshold.cutoff, 1)}+ | ${ratio(threshold.held, threshold.played)} held`}
+        </li>)}
+      </ul>
+      <p className="first-serve-detail small" role="status">{detail
+        ? `${gameLabel(detail)} | ${names[detail.server]} | ${detail.held ? 'Held' : 'Broken'} | First serves in: ${ratio(detail.firstIn, detail.attempts)} | Coverage: ${detail.attempts}/${detail.eligiblePoints} | Lucky excluded: ${detail.luckyPoints}`
+        : `${chartGames.filter(completeFirstServeGame).length} plotted; ${chartGames.filter((game) => !completeFirstServeGame(game)).length} omitted for incomplete or absent serve data.`}</p>
+      <details><summary>Game details</summary>
+        <Table head={['Game', 'Server', 'Result', '1st serve in', 'Coverage', 'Lucky excluded']}
+          rows={chartGames.map((game) => [gameLabel(game), names[game.server], game.held ? 'Held' : 'Broken',
+            completeFirstServeGame(game) ? ratio(game.firstIn, game.attempts) : 'Incomplete',
+            `${game.attempts}/${game.eligiblePoints}`, game.luckyPoints])} />
+      </details>
+    </>}
+    <h4>Hold Rate by First-Serve Threshold</h4>
+    <OptionalChips label="Band table player" options={options} value={bandPlayer} onChange={setBandPlayer} />
+    <Table head={['First serves in', ...players.map((player) => names[player])]}
+      rows={[
+        ...bands[0].map((band, index) => [band.label, ...bands.map((playerBands) => ratio(playerBands[index].held, playerBands[index].played))]),
+        [<strong>Overall hold rate</strong>, ...players.map((player) => {
+          const sample = games.filter((game) => game.server === player && completeFirstServeGame(game));
+          return ratio(sample.filter((game) => game.held).length, sample.length);
+        })],
+      ]} />
+    <p className="muted small">{players.map(bandSummary).join('. ')}.</p>
+    <p className="muted small">First serves in / first attempts, including first faults. Completed regular service games only;
+      tiebreaks and match tiebreaks excluded. Rates exclude Lucky points; games with missing non-Lucky serve records are omitted.
+      Cumulative results are held games / eligible games; 40%+, 60%+ and 80%+ overlap.
+      P75 marks the lowest observed first-serve-in cutoff with at least 75% holds at or above that rate.
+      These are observed samples, not predictions; higher cutoffs need not retain that hold rate. Small samples and opponent strength limit comparisons.</p>
   </>;
 }
 

@@ -294,6 +294,98 @@ function servicePoints(ctxs: PointContext[], f: ServeFilters): Point[] {
 
 export type LocationTypeCounts = Record<ServeSpot, Record<ServeKind, number>>;
 
+export function serveLocationImpact(ctxs: PointContext[], filters: ServeFilters, kinds: ServeKind[] = []) {
+  const sample = recordedServes(ctxs, filters).filter((context) => {
+    const point = context.point;
+    const attempt = point.serves.at(-1)!;
+    return !context.before.winner && chosen(filters.attempts, point.serves.length)
+      && chosen(filters.locations, spotOf(attempt)) && chosen(kinds, kindOf(attempt));
+  });
+  return ([1, 2] as const).flatMap((attempt) => (['deuce', 'ad'] as const).flatMap((side) => SPOTS.map((location) => {
+    const points = sample.filter((context) => context.point.serves.length === attempt && context.side === side
+      && spotOf(context.point.serves.at(-1)!) === location).map((context) => context.point);
+    return { attempt, side, location, played: points.length,
+      won: points.filter((point) => point.winner === point.server).length,
+      defaultLocation: points.filter((point) => point.serves.at(-1)!.location === 'none').length,
+      defaultType: points.filter((point) => point.serves.at(-1)!.type === 'none').length };
+  })));
+}
+
+export interface FirstServeGame {
+  set: number;
+  game: number;
+  server: Side;
+  held: boolean;
+  firstIn: number;
+  attempts: number;
+  eligiblePoints: number;
+  luckyPoints: number;
+}
+
+export const FIRST_SERVE_BANDS = [
+  { label: 'Below 40%', min: 0, max: 0.4 },
+  { label: '40%+', min: 0.4, max: Infinity },
+  { label: '60%+', min: 0.6, max: Infinity },
+  { label: '80%+', min: 0.8, max: Infinity },
+] as const;
+
+export const completeFirstServeGame = (game: FirstServeGame) =>
+  game.attempts > 0 && game.attempts === game.eligiblePoints;
+
+export function firstServeGames(match: Match, ctxs: PointContext[]): FirstServeGame[] {
+  const after = computeScore(match.rules, match.firstServer ?? 'A', ctxs.map((context) => context.point.winner));
+  const games: FirstServeGame[] = [];
+  let current: FirstServeGame | undefined;
+  for (const [index, context] of ctxs.entries()) {
+    if (context.before.inTiebreak || context.matchTiebreak || context.before.winner) continue;
+    const gameNumber = context.before.games.a + context.before.games.b + 1;
+    if (!current || current.set !== context.set || current.game !== gameNumber) {
+      current = { set: context.set, game: gameNumber, server: context.point.server,
+        held: false, firstIn: 0, attempts: 0, eligiblePoints: 0, luckyPoints: 0 };
+    }
+    const point = context.point;
+    if (isLuckyBall(point)) current.luckyPoints++;
+    else {
+      current.eligiblePoints++;
+      if (point.end !== 'unrecorded' && point.serves.length > 0) {
+        current.attempts++;
+        if (point.serves[0].result !== 'fault') current.firstIn++;
+      }
+    }
+    const next = ctxs[index + 1]?.before ?? after;
+    if (next.sets.length !== context.set || next.games.a + next.games.b !== gameNumber - 1) {
+      current.held = point.winner === current.server;
+      games.push(current);
+      current = undefined;
+    }
+  }
+  return games;
+}
+
+export function firstServeBands(games: FirstServeGame[], server: Side) {
+  const eligible = games.filter((game) => game.server === server && completeFirstServeGame(game));
+  return FIRST_SERVE_BANDS.map((band) => {
+    const sample = eligible.filter((game) => {
+      const rate = game.firstIn / game.attempts;
+      return rate >= band.min && rate < band.max;
+    });
+    return { label: band.label, played: sample.length, held: sample.filter((game) => game.held).length };
+  });
+}
+
+export function firstServeHoldThresholds(games: FirstServeGame[], server: Side) {
+  const eligible = games.filter((game) => game.server === server && completeFirstServeGame(game));
+  const cutoffs = [...new Set(eligible.map((game) => game.firstIn / game.attempts))].sort((left, right) => left - right);
+  return ([0.75] as const).map((target) => {
+    for (const cutoff of cutoffs) {
+      const sample = eligible.filter((game) => game.firstIn / game.attempts >= cutoff);
+      const held = sample.filter((game) => game.held).length;
+      if (held / sample.length >= target) return { target, cutoff, held, played: sample.length };
+    }
+    return { target, cutoff: null, held: 0, played: 0 };
+  });
+}
+
 /** Serve attempts (faults included) by location and serve type. The location filter does not apply. */
 export function serveDistribution(ctxs: PointContext[], f: ServeFilters): LocationTypeCounts {
   const out = Object.fromEntries(SPOTS.map((l) => [l, Object.fromEntries(KINDS.map((t) => [t, 0]))])) as LocationTypeCounts;

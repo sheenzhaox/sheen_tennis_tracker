@@ -5,7 +5,8 @@ import type { Match, Point, RallyEnding, ShotType } from '../../model/types';
 import RallyEntry from '../components/RallyEntry';
 import OptionRow from '../components/OptionRow';
 import { StatsView } from './StatsPage';
-import { AdvancedAnalysisView } from './AdvancedAnalysisPage';
+import { AdvancedAnalysisView, FirstServeRateImpact, ServeLocationImpact } from './AdvancedAnalysisPage';
+import { pointContexts } from '../../stats/matchStats';
 
 const match: Match = {
   id: 'match', playerAId: 'alice', playerBId: 'bob', ruleSetId: 'standard', ruleSetName: 'Standard',
@@ -22,6 +23,44 @@ const stats = (points: Point[]) => renderToStaticMarkup(
 );
 
 describe('rally shot options and stats', () => {
+  it('shows both players in location bars and court heatmaps with final-attempt outcomes', () => {
+    const recorded: Point[] = [{ ...point('slice'), serves: [{ result: 'ace', location: 'wide', type: 'flat' }], end: 'ace' },
+      { ...point('slice'), id: 'double', seq: 1, end: 'double_fault', winner: 'B',
+        serves: [{ result: 'fault', location: 'wide', type: 'flat' }, { result: 'fault', location: 'none', type: 'none' }] },
+      { ...point('slice'), id: 'wide', seq: 2, serves: [{ result: 'in', location: 'wide', type: 'flat' }] },
+      { ...point('slice'), id: 'body', seq: 3, winner: 'B', serves: [{ result: 'in', location: 'body', type: 'flat' }] }];
+    const html = renderToStaticMarkup(<ServeLocationImpact ctxs={pointContexts(match, recorded)} nameA="Alice" nameB="Bob" />);
+    expect(html).toContain('<h3>Serve location impact</h3>');
+    expect(html).toContain('aria-label="Point-Win-Rate Bars"');
+    expect(html).toContain('aria-label="Court-Side Heatmap"');
+    expect(html).toContain('aria-label="Wide: 2/2 (100%); overall 66.7%"');
+    expect(html).toContain('aria-label="Ad Body: 0/1 (0%)"');
+    expect(html).toContain('aria-label="Deuce T: -"');
+    expect(html).toContain('defaulted location (Body): 1; defaulted type (Flat): 1.');
+    expect(html).toContain('No eligible recorded service points.');
+    expect(html.match(/aria-pressed="false">(?:Alice|Bob)<\/button>/g)).toHaveLength(4);
+    expect(html).toContain('Point-win-rate colour scale: 0% to 100%');
+  });
+
+  it('shows both players by default in first-serve chart and band table', () => {
+    const recorded: Point[] = Array.from({ length: 8 }, (_, index) => ({ ...point('slice'), id: `serve-${index}`, seq: index,
+      server: index < 4 ? 'A' : 'B', winner: 'A' }));
+    const html = renderToStaticMarkup(<FirstServeRateImpact match={match} ctxs={pointContexts(match, recorded)} nameA="Alice" nameB="Bob" />);
+    expect(html).toContain('First serve rate impact');
+    expect(html).toContain('aria-label="Set 1, game 1, Alice, Held, 4/4 (100%)"');
+    expect(html).toContain('aria-label="Set 1, game 2, Bob, Broken, 4/4 (100%)"');
+    for (const label of ['40%+', '60%+', '80%+']) {
+      expect(html).toContain(`<th>${label}</th><td>1/1 (100%)</td><td>0/1 (0%)</td>`);
+    }
+    expect(html).toContain('lucide-check');
+    expect(html).toContain('lucide-x');
+    expect(html).not.toContain('P50');
+    expect(html).toContain('aria-label="Alice P75: 100%, 1/1 (100%) held"');
+    expect(html).toContain('Bob P75: Not reached');
+    expect(html.match(/aria-pressed="false">(?:Alice|Bob)<\/button>/g)).toHaveLength(4);
+    expect(html).toContain('Alice: 1 eligible games; 0 omitted. Bob: 1 eligible games; 0 omitted.');
+  });
+
   it('reuses the unchanged Summary in Advanced Analysis and adds the serve tables', () => {
     const rally = point('drive_volley');
     const points: Point[] = [rally, { ...rally, id: 'lucky', seq: 1, rally: { ...rally.rally!, lucky: true } },
@@ -37,7 +76,7 @@ describe('rally shot options and stats', () => {
     expect(tables[0]).toContain('<th>Service games won</th><td>-</td><td>-</td>');
     expect(tables[0]).toContain('<th>Break points saved</th><td>-</td><td>-</td>');
     expect(normal).not.toContain('Service games won');
-    expect(tables).toHaveLength(6);
+    expect(tables).toHaveLength(9);
     // Lucky ball and manual points are excluded: 2 service points (Serve + 1 rally and double fault).
     expect(tables[2]).toContain('<th><strong>Service points</strong></th><td>2</td>');
     expect(tables[3]).toContain('<th><strong>Serve in control</strong></th><td>1</td><td>50%</td><td>1</td><td>100%</td>');
@@ -49,9 +88,9 @@ describe('rally shot options and stats', () => {
     // Each part has its own selectors defaulting to "All *"; a single set needs no "All sets".
     expect(advanced).not.toContain('All sets');
     expect(advanced.match(/aria-label="Player"/g)).toHaveLength(5);
-    expect(advanced.match(/aria-pressed="true">All sides</g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="true">All sides</g)).toHaveLength(6);
     expect(advanced.match(/aria-pressed="true">All serves</g)).toHaveLength(5);
-    expect(advanced.match(/aria-pressed="true">All points</g)).toHaveLength(4);
+    expect(advanced.match(/aria-pressed="true">All points</g)).toHaveLength(6);
     expect(advanced.match(/aria-pressed="true">All locations</g)).toHaveLength(2);
     // Unrecorded match information is hidden; unrecorded serve location/type count as Body/Flat.
     expect(advanced).not.toContain('<dt>Event</dt>');
@@ -69,8 +108,8 @@ describe('rally shot options and stats', () => {
     const points = Array.from({ length: 25 }, (_, seq) => ({ ...rally, id: `p${seq}`, seq }));
     const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
       points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
-    expect(advanced.match(/aria-pressed="true">All sets</g)).toHaveLength(5);
-    expect(advanced.match(/aria-pressed="false">Set 2</g)).toHaveLength(5);
+    expect(advanced.match(/aria-pressed="true">All sets</g)).toHaveLength(7);
+    expect(advanced.match(/aria-pressed="false">Set 2</g)).toHaveLength(7);
     expect(advanced).toContain('<th>Service games won</th><td>6/6 (100%)</td><td>-</td>');
   });
 

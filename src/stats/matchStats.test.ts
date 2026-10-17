@@ -4,6 +4,9 @@ import {
   errorTypeStats,
   errorDirectionStats,
   filterSets,
+  firstServeGames,
+  firstServeBands,
+  firstServeHoldThresholds,
   locationRepeats,
   pointContexts,
   pointPhase,
@@ -12,6 +15,7 @@ import {
   serveFaults,
   serveImpact,
   serveImpactStats,
+  serveLocationImpact,
   servePerformance,
   serviceGamesHeld,
   setOptions,
@@ -338,6 +342,103 @@ describe('match stats', () => {
 describe('advanced serve statistics', () => {
   const all: ServeFilters = { server: 'A', sets: [], sides: [], attempts: [], keyPoints: [], locations: [] };
   const ctxs = pointContexts(match, points);
+
+  it('aggregates location outcomes once per final attempt with defaulted-field coverage', () => {
+    const recorded = [...points,
+      point('A', 'A', 'rally', [serve('in')], rally('server_winner', { lucky: true })),
+      point('A', 'B', 'return_winner', []),
+      point('B', 'B', 'ace', [serve('ace', { location: 'wide' })])];
+    const cells = serveLocationImpact(pointContexts(match, recorded), all);
+    expect(cells).toHaveLength(12);
+    expect(cells.reduce((total, cell) => total + cell.played, 0)).toBe(5);
+    expect(cells.filter((cell) => cell.attempt === 1).reduce((total, cell) => total + cell.played, 0)).toBe(3);
+    expect(cells.find((cell) => cell.attempt === 2 && cell.side === 'ad' && cell.location === 'body'))
+      .toMatchObject({ won: 0, played: 1 });
+    expect(cells.find((cell) => cell.attempt === 1 && cell.side === 'deuce' && cell.location === 'wide'))
+      .toMatchObject({ won: 0, played: 1 });
+    expect(cells.reduce((total, cell) => total + cell.defaultType, 0)).toBe(5);
+    const defaults = serveLocationImpact(pointContexts(match, [point('A', 'A', 'ace', [serve('ace')])]), all);
+    expect(defaults.find((cell) => cell.attempt === 1 && cell.side === 'deuce' && cell.location === 'body'))
+      .toMatchObject({ won: 1, played: 1, defaultLocation: 1, defaultType: 1 });
+    expect(serveLocationImpact([], all).every((cell) => cell.played === 0)).toBe(true);
+    const finished = ctxs.map((context) => ({ ...context, before: { ...context.before, winner: 'A' as const } }));
+    expect(serveLocationImpact(finished, all).every((cell) => cell.played === 0)).toBe(true);
+  });
+
+  it('filters location outcomes by side, set, type, player and key-point context', () => {
+    const count = (filters: ServeFilters, kinds: ('flat' | 'slice' | 'kick')[] = []) =>
+      serveLocationImpact(ctxs, filters, kinds).reduce((total, cell) => total + cell.played, 0);
+    expect(count({ ...all, sides: ['ad'] })).toBe(2);
+    expect(count({ ...all, attempts: [2], locations: ['body'] })).toBe(2);
+    expect(count({ ...all, keyPoints: ['first'] })).toBe(1);
+    expect(count({ ...all, sets: [1] })).toBe(0);
+    expect(count({ ...all, server: 'B' })).toBe(0);
+    expect(count(all, ['flat'])).toBe(5);
+    expect(count(all, ['slice'])).toBe(0);
+    const contexts = ctxs.map((context) => ({ ...context, before: { ...context.before, inTiebreak: true } }));
+    expect(serveLocationImpact(contexts, { ...all, keyPoints: ['tiebreak'] }).reduce((total, cell) => total + cell.played, 0)).toBe(5);
+  });
+
+  it('compares first attempts with completed service-game outcomes and preserves coverage', () => {
+    const recorded = [
+      ...Array.from({ length: 4 }, (_, index) => point('A', 'A', 'ace',
+        index < 2 ? [serve('ace')] : [serve('fault'), serve('ace')])),
+      point('B', 'A', 'unrecorded', []),
+      point('B', 'A', 'rally', [serve('in')], rally('returner_winner', { lucky: true })),
+      point('B', 'A', 'return_winner', [serve('return_winner')]),
+      point('B', 'A', 'return_winner', [serve('return_winner')]),
+      point('A', 'A', 'ace', [serve('ace')]),
+    ];
+    const games = firstServeGames(match, pointContexts(match, recorded));
+    expect(games).toEqual([
+      { set: 0, game: 1, server: 'A', held: true, firstIn: 2, attempts: 4, eligiblePoints: 4, luckyPoints: 0 },
+      { set: 0, game: 2, server: 'B', held: false, firstIn: 2, attempts: 2, eligiblePoints: 3, luckyPoints: 1 },
+    ]);
+    expect(firstServeBands(games, 'A')[1]).toMatchObject({ played: 1, held: 1 });
+    expect(firstServeBands(games, 'B').every((band) => band.played === 0)).toBe(true);
+  });
+
+  it('excludes tiebreaks and match-tiebreak sets, including their final points', () => {
+    const shortMatch = { ...match, rules: { ...DEFAULT_RULES, bestOf: 3 as const, gamesPerSet: 1,
+      tiebreakAt: 1, tiebreakPoints: 2, finalSetTiebreakPoints: 2, finalSet: 'matchTiebreak' as const } };
+    const winners: Side[] = [...Array<Side>(4).fill('A'), ...Array<Side>(4).fill('B'), 'A', 'A',
+      ...Array<Side>(4).fill('B'), ...Array<Side>(4).fill('A'), 'B', 'B', 'A', 'B'];
+    const recorded = winners.map((winner) => point('A', winner, 'ace', [serve('ace')]));
+    const contexts = pointContexts(shortMatch, recorded);
+    expect(contexts.some((context) => context.matchTiebreak)).toBe(true);
+    expect(firstServeGames(shortMatch, contexts).map((game) => [game.set, game.game])).toEqual([[0, 1], [0, 2], [1, 1], [1, 2]]);
+  });
+
+  it('includes exact boundaries in overlapping cumulative groups and excludes empty samples', () => {
+    const games = [0, 0.4, 0.6, 0.8, 1].map((rate, index) => ({ set: 0, game: index + 1,
+      server: 'A' as const, held: index % 2 === 0, firstIn: rate * 10, attempts: 10, eligiblePoints: 10, luckyPoints: 0 }));
+    expect(firstServeBands(games, 'A').map((band) => [band.played, band.held])).toEqual([[1, 1], [4, 2], [3, 2], [2, 1]]);
+    expect(firstServeBands([{ ...games[0], attempts: 0, eligiblePoints: 0 }], 'A').every((band) => band.played === 0)).toBe(true);
+  });
+
+  it('finds the lowest observed cumulative hold-rate thresholds per player without rounding', () => {
+    const games = [0, 0.4, 0.6, 0.8, 1].map((rate, index) => ({ set: 0, game: index + 1,
+      server: 'A' as const, held: index === 2 || index === 4, firstIn: rate * 10, attempts: 10, eligiblePoints: 10, luckyPoints: 0 }));
+    expect(firstServeHoldThresholds(games, 'A')).toEqual([
+      { target: 0.75, cutoff: 1, held: 1, played: 1 },
+    ]);
+    const tied = [...games, { ...games[4], held: false }, { ...games[4], held: true, eligiblePoints: 11 }];
+    expect(firstServeHoldThresholds(tied, 'A')[0].cutoff).toBeNull();
+    expect(firstServeHoldThresholds(games, 'B').every((threshold) => threshold.cutoff === null)).toBe(true);
+    expect(firstServeHoldThresholds([{ ...games[4], firstIn: 2, attempts: 3, eligiblePoints: 3 }], 'A')[0].cutoff).toBe(2 / 3);
+    expect(firstServeHoldThresholds([{ ...games[0], attempts: 0, eligiblePoints: 0 }], 'A')[0].cutoff).toBeNull();
+  });
+
+  it('counts a final no-ad game once and ignores points after match completion', () => {
+    const shortMatch = { ...match, rules: { ...DEFAULT_RULES, bestOf: 1 as const, noAd: true, gamesPerSet: 1 } };
+    const winners: Side[] = ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A', 'A'];
+    const recorded = winners.map((winner) => point('A', winner, 'ace', [serve('ace')]));
+    const games = firstServeGames(shortMatch, pointContexts(shortMatch, recorded));
+    expect(games).toHaveLength(2);
+    expect(games.map((game) => game.attempts)).toEqual([7, 4]);
+    const extra = [...recorded, point('A', 'A', 'ace', [serve('ace')])];
+    expect(firstServeGames(shortMatch, pointContexts(shortMatch, extra))).toEqual(games);
+  });
 
   it('distributes serve attempts, faults included, by location and type', () => {
     // Unrecorded locations count as Body and unrecorded types as Flat.
