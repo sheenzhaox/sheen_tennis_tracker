@@ -128,7 +128,7 @@ describe('analytics route wiring', () => {
     expect(html).toContain('href="#/match/shared/stats?return=%2Fstats%2Fmatches"');
     const headings = [...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map((entry) => entry[1]);
     expect(headings).toEqual(['Match Information', 'General Statistics', 'Serve Statistics', 'Return Statistics',
-      'Winner Statistics', 'Unforced Error Statistics', 'Other Key Factors Statistics']);
+      'Winner Statistics', 'Unforced Error Statistics', 'Momentum Impact (Match Control Score)']);
     for (const value of ['Alice vs bob', 'Court 2', 'Club championship', 'Final', 'Match note', 'retired']) expect(html).toContain(value);
     expect(html.match(/<table /g)).toHaveLength(8);
     for (const value of ['Location distribution', 'Serve performance', 'Serve impact', 'Serve in control', 'Return in control', 'Faults', 'Serving summary', 'Tiebreak']) {

@@ -114,6 +114,20 @@ describe('rally shot options and stats', () => {
     expect(advanced).toContain('<th>Service games won</th><td>6/6 (100%)</td><td>-</td>');
   });
 
+  it('requires one Momentum Impact player and charts the Match Control Score', () => {
+    const rally = point('drive_volley');
+    const points = Array.from({ length: 25 }, (_, seq) => ({ ...rally, id: `p${seq}`, seq }));
+    const advanced = renderToStaticMarkup(<AdvancedAnalysisView match={{ ...match, status: 'completed' }}
+      points={points} nameA="Alice" nameB="Bob" back="/match/match/stats" />);
+    const momentum = advanced.slice(advanced.indexOf('Momentum Impact (Match Control Score)'));
+    expect(momentum).toContain('aria-label="Momentum player"');
+    expect(momentum).toContain('aria-pressed="true">Alice</button>');
+    expect(momentum).toContain('aria-pressed="false">Bob</button>');
+    expect(momentum).toContain('>Match Control Score Alice (vs Bob)</text>');
+    expect(momentum).toContain('Set 1 (won by Alice)');
+    expect(momentum).toContain('Recorded point endings: 25/25 (100%)');
+  });
+
   it('shows the server save rate for Return in control and the lost rate for its rallies', () => {
     const rally = point('drive_volley');
     const inControl = (seq: number, ending: RallyEnding,

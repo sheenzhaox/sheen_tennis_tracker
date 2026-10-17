@@ -29,6 +29,8 @@ import {
   type ServeSpot,
 } from '../../stats/matchStats';
 import { KEY_POINTS, OptionalChips, ServePerformanceTable, SummaryStats, Table } from './StatsPage';
+import { other } from '../../engine/score';
+import { CONTROL_REVERSAL, controlSeries, matchControl, type ControlFactor } from '../../stats/momentum';
 
 export default function AdvancedAnalysisPage({ id, returnTo }: { id: string; returnTo?: string | null }) {
   const match = useLiveQuery(async () => {
@@ -84,7 +86,10 @@ export function AdvancedAnalysisView({ match, points, nameA, nameB, back }: {
       <section aria-labelledby="analysis-return"><h2 id="analysis-return">Return Statistics</h2></section>
       <section aria-labelledby="analysis-winner"><h2 id="analysis-winner">Winner Statistics</h2></section>
       <section aria-labelledby="analysis-ue"><h2 id="analysis-ue">Unforced Error Statistics</h2></section>
-      <section aria-labelledby="analysis-other"><h2 id="analysis-other">Other Key Factors Statistics</h2></section>
+      <section aria-labelledby="analysis-momentum">
+        <h2 id="analysis-momentum">Momentum Impact (Match Control Score)</h2>
+        <MomentumImpact match={match} ctxs={ctxs} nameA={nameA} nameB={nameB} />
+      </section>
     </main>
   </>;
 }
@@ -479,5 +484,140 @@ function ServingSummary({ match, ctxs, nameA, nameB, playerOnly, records }: Part
       {playerOnly ? ' resetting at each match boundary (Court side and Serve attempt).'
         : ' within the selected set or through the whole match (Player, Set, Court side and Serve attempt).'}
     </p>
+  </>;
+}
+
+const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+const signed = (n: number) => `${n > 0 ? '+' : ''}${num(n)}`;
+const RISE = '#2e7d32';
+const FALL = '#c62828';
+
+function factorLabel(f: ControlFactor, names: Record<Side, string>, X: Side): string {
+  if (f.kind === 'set') return 'Set result';
+  if (f.kind !== 'games') return `${names[f.side]} ${f.kind} (${f.count})`;
+  const { holds, breaks, tiebreakWinner } = f;
+  const plural = (n: number, word: string) => (n ? `${n} ${word}${n > 1 ? 's' : ''}` : '');
+  const games = (S: Side) => {
+    const text = [plural(holds[S], 'hold'), plural(breaks[S], 'break')].filter(Boolean).join(', ');
+    return text && `${names[S]} ${text}`;
+  };
+  return [games(X), games(other(X)), tiebreakWinner ? `Tiebreak won by ${names[tiebreakWinner]}` : '']
+    .filter(Boolean).join('; ');
+}
+
+export function MomentumImpact({ match, ctxs, nameA, nameB }: PartProps & { match: Match }) {
+  const [player, setPlayer] = useState<Side>('A');
+  const names = { A: nameA, B: nameB };
+  const control = matchControl(match, ctxs);
+  if (!control.points) return <p role="status">No points recorded.</p>;
+  const me = names[player], opp = names[other(player)];
+  const series = controlSeries(control, player);
+  const all = series.sets.flatMap((s) => s.values);
+  const max = Math.max(...all), min = Math.min(...all);
+  const lo = Math.min(0, min) - 14, hi = Math.max(0, max) + 16;
+  const slots = all.length + series.sets.length - 1;
+  const padL = 64, padR = 60, padT = 84, padB = 40, H = 460;
+  const W = Math.max(720, padL + padR + (slots - 1) * 5);
+  const x = (slot: number) => padL + (slot * (W - padL - padR)) / Math.max(1, slots - 1);
+  const y = (v: number) => padT + ((hi - v) * (H - padT - padB)) / (hi - lo);
+  const half = (x(1) - x(0)) / 2;
+  const bottom = H - padB;
+  let slot = 0;
+  const layout = series.sets.map((s) => {
+    const xs = s.values.map(() => x(slot++));
+    slot++;
+    return { ...s, xs };
+  });
+  const at = (setIndex: number, index: number) => {
+    const s = layout[setIndex];
+    if (index === 0) return 'set start';
+    if (index === s.values.length - 1) return s.set.winner ? 'set end' : 'last point';
+    return s.set.steps[index - 1].score;
+  };
+  const coverage = `${control.recorded}/${control.points} (${pct(control.recorded, control.points)})`;
+  return <>
+    <PickChips label="Momentum player" value={player} onChange={setPlayer}
+      options={(['A', 'B'] as const).map((value) => ({ value, label: names[value] }))} />
+    <div className="first-serve-chart-scroll" role="region" aria-label="Match Control Score chart" tabIndex={0}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img"
+        aria-label={`Match Control Score ${me} (vs ${opp}): ${me}'s score minus ${opp}'s by point`}>
+        <rect width={W} height={H} fill="#fff" />
+        {layout.map((s, setIndex) => {
+          const bands: ReactNode[] = [];
+          const labels: ReactNode[] = [];
+          let shade = false;
+          let gameStart: number | null = null;
+          s.set.steps.forEach((step, k) => {
+            const i = k + 1, b = step.ctx.before;
+            const key = b.inTiebreak ? 'TB' : `${b.games.a}-${b.games.b}`;
+            const next = s.set.steps[k + 1]?.ctx.before;
+            if (gameStart === null) {
+              gameStart = i;
+              if (!b.inTiebreak) labels.push(<text key={`g${i}`} x={s.xs[i] - half + 2} y={padT + 10} fontSize={9} fill="#555">{key}</text>);
+            }
+            if (b.inTiebreak && (b.points.a + b.points.b) % 6 === 0) {
+              labels.push(<g key={`t${i}`}>
+                <line x1={s.xs[i] - half} x2={s.xs[i] - half} y1={padT} y2={bottom} stroke="#999" strokeDasharray="2,3" />
+                <text x={s.xs[i] - half + 2} y={padT + 10} fontSize={9} fill="#555">{b.points.a}-{b.points.b}</text>
+              </g>);
+            }
+            if (!next || (next.inTiebreak ? 'TB' : `${next.games.a}-${next.games.b}`) !== key) {
+              if (shade) bands.push(<rect key={`b${i}`} x={s.xs[gameStart] - half} y={padT} width={s.xs[i] - s.xs[gameStart] + 2 * half}
+                height={bottom - padT} fill="#ececec" />);
+              shade = !shade;
+              gameStart = null;
+            }
+          });
+          return <g key={`bands${setIndex}`}>{bands}{labels}</g>;
+        })}
+        <text x={padL} y={18} fontSize={14}>{`Match Control Score ${me} (vs ${opp})`}</text>
+        <line x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} stroke="#333" />
+        <text transform={`translate(16 ${(padT + bottom) / 2}) rotate(-90)`} fontSize={12} textAnchor="middle">Match Control Score</text>
+        {[...new Set([max, 0, min])].map((v) => <text key={v} x={padL - 6} y={y(v) + 4} fontSize={11} textAnchor="end">{num(v)}</text>)}
+        {layout.map((s, setIndex) => {
+          const path = s.values.map((v, i) => `${i ? 'L' : 'M'}${s.xs[i].toFixed(1)},${y(v).toFixed(1)}`).join('');
+          const won = s.set.winner ? `won by ${names[s.set.winner]}` : 'unfinished';
+          return <g key={`set${setIndex}`}>
+            <text x={s.xs[0]} y={padT - 40} fontSize={12} fontWeight="bold">{`${s.set.label} (${won})`}</text>
+            {setIndex > 0 && <line x1={s.xs[0] - 2 * half} x2={s.xs[0] - 2 * half} y1={padT - 54} y2={bottom} stroke="#bbb" strokeDasharray="4" />}
+            <circle cx={s.xs[0]} cy={y(s.values[0])} r={3} fill="#fff" stroke="#1565c0"><title>{s.set.label} start {num(s.values[0])}</title></circle>
+            <path d={path} fill="none" stroke="#1565c0" strokeWidth={2} />
+            {s.turns.map((t) => {
+              const px = s.xs[t.index], py = y(t.value), peak = t.type === 'peak';
+              const color = peak ? FALL : RISE;
+              const tri = peak ? `${px - 6},${py - 12} ${px + 6},${py - 12} ${px},${py - 3}` : `${px - 6},${py + 12} ${px + 6},${py + 12} ${px},${py + 3}`;
+              const ty = peak ? py - 30 : py + 26;
+              const score = s.set.steps[t.index - 1].score;
+              return <g key={t.index}>
+                <title>{`${peak ? 'Peak' : 'Trough'} at ${score}: ${num(t.value)}, then ${signed(t.swing)}`}</title>
+                <polygon points={tri} fill={color} />
+                <text x={px} y={ty} fontSize={11} textAnchor="middle" fill={color}>{score}</text>
+                <text x={px} y={ty + 12} fontSize={11} textAnchor="middle" fill={color}>{num(t.value)} → {signed(t.swing)}</text>
+              </g>;
+            })}
+          </g>;
+        })}
+        {series.segments.map((g) => {
+          const s = layout[g.setIndex], color = g.change >= 0 ? RISE : FALL;
+          return <g key={g.number}>
+            <title>{`${g.number}. ${signed(g.change)}${g.biggest ? `: ${factorLabel(g.biggest, names, player)} ${signed(g.biggest.value)}` : ''}`}</title>
+            <line x1={s.xs[g.from]} x2={s.xs[g.to]} y1={bottom + 8} y2={bottom + 8} stroke={color} strokeWidth={4} />
+            <text x={(s.xs[g.from] + s.xs[g.to]) / 2} y={bottom + 24} fontSize={11} textAnchor="middle" fill={color}>{g.number}</text>
+          </g>;
+        })}
+      </svg>
+    </div>
+    {series.segments.length > 0 && <Table head={['#', 'Set', 'From → to', 'Change', 'Biggest factor']}
+      rows={series.segments.map((g) => [g.number, layout[g.setIndex].set.label, `${at(g.setIndex, g.from)} → ${at(g.setIndex, g.to)}`,
+        <strong style={{ color: g.change >= 0 ? RISE : FALL }}>{signed(g.change)}</strong>,
+        g.biggest ? <>{factorLabel(g.biggest, names, player)} <strong>{signed(g.biggest.value)}</strong></> : '-'])} />}
+    <p className="muted small">{me}'s Match Control Score minus {opp}'s after each point; each set is drawn separately from its
+      set-start score (previous set result ±3 plus closing form, capped). Own winners +1, unforced errors −1 and double faults −2,
+      with extras for winner runs, error runs and key points; holds, breaks, tiebreaks and sets add outcome points.
+      Red ▼ peaks and green ▲ troughs are turning points confirmed by a reversal of {CONTROL_REVERSAL} or more, labelled with the
+      score before that point and the following swing. Numbered segments run between turning points; segments inside a single game
+      (or a 6-point tiebreak block) are not listed. Biggest factor: the largest contribution in the direction of the change.</p>
+    <p className="muted small">Recorded point endings: {coverage}. Lucky and unrecorded points score 0. Fixed coaching weights;
+      not a measure of cause or win probability.</p>
   </>;
 }

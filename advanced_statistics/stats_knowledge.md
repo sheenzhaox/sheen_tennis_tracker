@@ -142,6 +142,23 @@ Their purpose is to connect serve-associated results with ending-shot execution.
 
 No win-probability model, per-stat match-result contribution, benchmark target, confidence interval or cross-match advanced serve dashboard has been implemented. Service-point percentages cannot be converted directly into hold or match-win probabilities without additional modelling assumptions.
 
+## Momentum Impact (Match Control Score)
+
+**Implemented locally 2026-10-17 (not committed or deployed); Advanced Analysis, single match only.** Replaces the empty Other Key Factors Statistics section. Rules, weights and history are in [momentum.md](momentum.md#match-control-score-user-heuristic); weights are fixed defaults (editing on hold).
+
+| Statistic/view | Definition | Purpose | Game and match interpretation |
+| --- | --- | --- | --- |
+| Match Control Score (per player) | Running sum per set: process layer (own winner +1, own UE -1, double fault -2, winner-run +1 and UE-run -1/-2 extras, key-point ±1) plus outcome layer (hold/break/broken by key stage, long deuce, break back, consolidation, broken straight back, extra break points saved, tiebreak ±3, set ±3). Each set restarts from the S4 set-start score. No denominator: a count of weighted events. | Summarise who produced the recorded winners, errors and game outcomes over a stretch of play | Scores are not zero-sum; both are often negative because errors outnumber winners. Higher does not mean the player won more points or the set. |
+| Chart: player − opponent | Selected player's score minus the opponent's after each point, one line per set from its start score; game bands with game scores, 6-point marks in tiebreaks | Show the flow of observed control within each set | Falls often coincide with breaks or error runs. Lags within a long set because it is a running total. Not a win probability. |
+| Turning points | Zigzag peaks (▼) and troughs (▲) of the plotted difference, confirmed by a reversal of 10 or more within the set; labelled with the score before the point and the following swing | Locate where the direction of the difference changed | A fixed, untuned threshold; short tiebreaks rarely reach it. A change of direction, not evidence of a momentum effect. |
+| Segments and biggest factor | Numbered stretches between turning points (set start/end included) spanning more than one game (6-point blocks in tiebreaks); the change is split exactly into each player's winners and errors (with run/key extras), game outcomes and set result; the table shows the largest part in the direction of the change | Explain arithmetically what moved the score in each stretch | Arithmetic attribution, not cause. "Talia errors (14) +33" means Talia's 14 own errors contributed +33 to the selected player's difference. |
+
+Required data: ordered point winners, saved rules and first server (score replay), `end`, `server`, `rally.ending` and `rally.lucky`. Lucky winners and unrecorded points score 0 and affect runs only through the point winner; recorded-ending coverage is shown. Unfinished final games and sets earn no outcome points; points after the match is decided are ignored. Exactly one player must be selected (default Player A); switching flips the curve's sign and changes the factor labels. Completed matches with no points show "No points recorded.".
+
+Limitations: judgement-based weights; one-match trial only; error volume dominates the process layer; set-start carry is capped at ±3 form; no rolling window, process/outcome split display or cross-match aggregation. No causal or win-probability claim.
+
+Implementation: `matchControl`, `isControlKeyPoint`, `turningPoints`, `segmentFactors`, `controlSeries` in [momentum.ts](../src/stats/momentum.ts); `MomentumImpact` in [AdvancedAnalysisPage.tsx](../src/ui/pages/AdvancedAnalysisPage.tsx). Tests: [momentum.test.ts](../src/stats/momentum.test.ts) (hand-checked first game, runs with lucky points, key points, break/consolidation/set bonuses, S4 start, unfinished game, segment attribution sum, zigzag), [StatsPage.test.tsx](../src/ui/pages/StatsPage.test.tsx) (required player selector and chart) and [StatsAnalysis.test.tsx](../src/ui/pages/StatsAnalysis.test.tsx) (heading). A temporary check reproduced Trial 1 exactly from the exported CSV (set ends +63/−20/−19 and all 8 segments); this checks the port, not the heuristic.
+
 ## Implementation and Verification
 
 ### Advanced Statistics in Player Stats
